@@ -44,3 +44,29 @@ class NBAAnalyzer:
         print(f"📁 数据已自动保存至: {save_path}")
 
         return df
+
+    def analyze_home_advantage(self) -> pd.DataFrame:
+        """分析 NBA 主场优势的情况"""
+        query = """
+                SELECT substr(season_id, 2)                               AS season_year,
+                       count(*)                                           AS total_games,
+                       sum(CASE WHEN wl_home = 'W' THEN 1 ELSE 0 END)     AS home_wins,
+                       avg(CASE WHEN wl_home = 'W' THEN 1.0 else 0.0 END) AS home_win_pct,
+                       AVG(pts_home - pts_away)                           AS avg_point_differential
+                FROM game
+                WHERE season_id LIKE '2%'
+                GROUP BY season_id
+                ORDER BY season_id;
+                """
+        df = pd.read_sql_query(query, self.conn)
+
+        # 保存到对应的子文件夹
+        save_path = os.path.join(
+            config.DATA_PROCESSED,
+            "home_advantage",
+            "reg_season_home_advantage.csv",
+        )
+        df.to_csv(save_path, index=False)
+        print(f"📁 数据已自动保存至: {save_path}")
+
+        return df

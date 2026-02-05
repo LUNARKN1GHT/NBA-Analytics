@@ -41,3 +41,16 @@ class NBAVisualizer:
         # 调用类内部的保存逻辑，指定子任务文件夹
         plt.tight_layout()
         self.save_plot("duration", "trend_chart.png")
+
+    def plot_home_advantage(self, df):
+        """主场优势胜率"""
+        plt.figure(figsize=(12, 6))
+        sns.lineplot(data=df, x="season_year", y="avg_point_differential", marker="o")
+
+        plt.title("NBA 常规赛主场优势演变趋势", fontsize=16, pad=20)
+        plt.xlabel("赛季", fontsize=12)
+        plt.ylabel("主场优势胜利优势 (百分比)", fontsize=12)
+        plt.xticks(rotation=45)
+
+        plt.tight_layout()
+        self.save_plot("home_advantage", "trend_chart.png")
