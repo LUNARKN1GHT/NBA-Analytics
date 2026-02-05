@@ -14,6 +14,8 @@ class NBAVisualizer:
 
     def save_plot(self, task_name, fig_name):
         """通用保存逻辑：定位到 reports/{task_name}/{fig_name}"""
+        save_path = os.path.join(config.REPORTS_DIR, task_name)
+        os.makedirs(save_path, exist_ok=True)
         path = os.path.join(config.REPORTS_DIR, task_name, fig_name)
         plt.savefig(path)
         plt.close()
