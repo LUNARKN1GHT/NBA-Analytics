@@ -66,6 +66,7 @@ class NBAAnalyzer:
             "home_advantage",
             "reg_season_home_advantage.csv",
         )
+        df["home_win_pct"] = df["home_win_pct"] - 0.5
         df.to_csv(save_path, index=False)
         print(f"📁 数据已自动保存至: {save_path}")
 

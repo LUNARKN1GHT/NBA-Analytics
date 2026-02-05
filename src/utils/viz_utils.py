@@ -45,7 +45,7 @@ class NBAVisualizer:
     def plot_home_advantage(self, df):
         """主场优势胜率"""
         plt.figure(figsize=(12, 6))
-        sns.lineplot(data=df, x="season_year", y="avg_point_differential", marker="o")
+        sns.lineplot(data=df, x="season_year", y="home_win_pct", marker="o")
 
         plt.title("NBA 常规赛主场优势演变趋势", fontsize=16, pad=20)
         plt.xlabel("赛季", fontsize=12)
