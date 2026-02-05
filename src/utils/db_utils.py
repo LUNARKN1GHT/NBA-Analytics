@@ -71,3 +71,60 @@ class NBAAnalyzer:
         print(f"📁 数据已自动保存至: {save_path}")
 
         return df
+
+    def analyze_clutch_shooters(self, min_attempts=20) -> pd.DataFrame:
+        query = """
+                SELECT p.player1_name      AS player_name,
+                       -- 1. 统计该球员在该时刻下的所有投篮记录（包含命中和投丢）
+                       COUNT(*)            AS clutch_attempts,
+
+                       -- 2. 统计命中的次数
+                       SUM(
+                               CASE
+                                   WHEN
+                                       p.eventmsgtype = 1 -- 代码 1 指投篮命中
+                                       THEN
+                                       1
+                                   ELSE
+                                       0
+                                   END
+                       )                   AS clutch_made,
+
+                       -- 3. 计算命中率：显式使用浮点数，确保纵轴不再是平直线
+                       CAST(SUM(CASE WHEN p.eventmsgtype = 1 THEN 1 ELSE 0 END) AS FLOAT) /
+                       COUNT(*)            AS clutch_fg_pct,
+
+                       -- 4. 计算硬解命中（无助攻且命中）
+                       SUM(CASE
+                               WHEN p.eventmsgtype = 1 AND (p.player2_id IS NULL OR p.player2_id = 0) THEN 1
+                               ELSE 0 END) AS isolator_made
+                FROM play_by_play p
+                WHERE p.period >= 4 -- 必须是第四节
+                  -- 时间过滤：最后5分钟
+                  AND (
+                          CAST(SUBSTR(p.pctimestring, 1, INSTR(p.pctimestring, ':') - 1) AS INTEGER) * 60 +
+                          CAST(SUBSTR(p.pctimestring, INSTR(p.pctimestring, ':') + 1) AS INTEGER)
+                          ) <= 300
+                  -- 分差过滤：5分以内
+                  AND ABS(CAST(CASE WHEN p.scoremargin = 'TIE' THEN 0 ELSE p.scoremargin END AS INTEGER)) <= 5
+                GROUP BY p.player1_id, p.player1_name
+                HAVING clutch_attempts >= ? -- 纳入统计的最低出手标准
+                ORDER BY clutch_attempts DESC;
+                """
+        df = pd.read_sql_query(query, self.conn, params=(min_attempts,))
+
+        # 计算硬解率：非受助攻命中 / 总命中 (处理分母为0的情况)
+        df["unassisted_rate"] = df["isolator_made"] / df["clutch_made"].replace(0, 1)
+
+        # 清洗空值，确保绘图正常
+        df = df.dropna(subset=["clutch_fg_pct", "clutch_attempts"]).copy()
+
+        save_path = os.path.join(
+            config.DATA_PROCESSED, "clutch", "top_clutch_shooters.csv"
+        )
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        df.to_csv(save_path, index=False)
+
+        print(f"📁 数据已自动保存至: {save_path}")
+        return df

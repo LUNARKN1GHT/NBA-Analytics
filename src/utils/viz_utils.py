@@ -56,3 +56,61 @@ class NBAVisualizer:
 
         plt.tight_layout()
         self.save_plot("home_advantage", "trend_chart.png")
+
+    def plot_clutch_performance(self, df):
+        if df.empty:
+            print("⚠️ DataFrame 为空，取消绘图。")
+            return
+
+        # 只在绘图层派生，不影响统计
+        df = df.copy()
+        df["isolator_rate"] = df["isolator_made"] / df["clutch_made"]
+
+        plt.figure(figsize=(28, 21))
+
+        scatter = plt.scatter(
+            df["clutch_attempts"],
+            df["clutch_fg_pct"],
+            c=df["isolator_rate"],
+            cmap="YlOrRd",
+            s=60,
+            alpha=0.75,
+            edgecolors="w",
+            linewidth=0.4,
+        )
+
+        # plt.xscale("log")
+
+        # y 轴仍然动态
+        y_min = max(0, df["clutch_fg_pct"].min() - 0.05)
+        y_max = min(1, df["clutch_fg_pct"].max() + 0.05)
+        plt.ylim(y_min, y_max)
+
+        cbar = plt.colorbar(scatter)
+        cbar.set_label("硬解率（硬解命中 / 总命中）", rotation=270, labelpad=20)
+
+        # 中位数辅助线（在 log 轴上依然有意义）
+        plt.axhline(
+            df["clutch_fg_pct"].median(), color="gray", linestyle="--", alpha=0.4
+        )
+        plt.axvline(
+            df["clutch_attempts"].median(), color="gray", linestyle="--", alpha=0.4
+        )
+
+        # 标注产量前考前的球员
+        top_players = df.nlargest(20, "clutch_attempts")
+        for _, row in top_players.iterrows():
+            plt.text(
+                row["clutch_attempts"] * 1.01,  # log 轴下用比例偏移
+                row["clutch_fg_pct"],
+                row["player_name"],
+                fontsize=8,
+                va="center",
+            )
+
+        plt.title("NBA 关键时刻：产量、效率与硬解能力分布", fontsize=15, pad=20)
+        plt.xlabel("关键时刻投篮出手次数（对数刻度）")
+        plt.ylabel("关键时刻命中率 (Clutch FG%)")
+
+        plt.tight_layout()
+        self.save_plot("clutch", "clutch_pro_analysis.png")
