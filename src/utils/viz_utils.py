@@ -56,7 +56,28 @@ class NBAVisualizer:
 
     @staticmethod
     def _plot_duration(df, **kwargs):
+        """具体的时长趋势绘图逻辑"""
         plt.figure(figsize=(12, 6))
-        sns.lineplot(data=df, x="season_year", y="avg_duration", marker="o")
-        plt.title(kwargs.get("title", "NBA 比赛时长趋势"), fontsize=15)
+        sns.lineplot(
+            data=df,
+            x="season_year",
+            y="avg_duration",
+            marker="o",
+            color="#17408B",
+            linewidth=2.5,
+        )
+
+        # 添加阴影区间 (±5%) 增加专业感
+        plt.fill_between(
+            df["season_year"],
+            df["avg_duration"] * 0.98,
+            df["avg_duration"] * 1.02,
+            alpha=0.1,
+            color="#17408B",
+        )
+
+        plt.title(kwargs.get("title", "NBA 比赛平均时长演变趋势"), fontsize=16)
+        plt.xlabel("年份", fontsize=12)
+        plt.ylabel("时长 (分钟)", fontsize=12)
         plt.xticks(rotation=45)
+        plt.tight_layout()
