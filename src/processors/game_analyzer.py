@@ -17,4 +17,13 @@ class GameAnalyzer(BaseAnalyzer):
                   AND gi.game_time LIKE '%:%'
                 GROUP BY g.season_id \
                 """
-        return self.db.query(query)
+
+        df = self.db.query(query)
+
+        # 调整数据类型
+        df["season_year"] = df["season_year"].astype(int)
+        df["avg_duration"] = df["avg_duration"].astype(float)
+
+        df["duration_ma3"] = df["avg_duration"].rolling(window=3, min_periods=3).mean()
+
+        return df

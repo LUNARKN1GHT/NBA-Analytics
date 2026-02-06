@@ -76,8 +76,30 @@ class NBAVisualizer:
             color="#17408B",
         )
 
+        # 年滚动平均
+        sns.lineplot(
+            data=df,
+            x="season_year",
+            y="duration_ma3",
+            linewidth=3,
+            color="#C9082A",
+            label="3 年滚动平均",
+        )
+
+        # LOWESS 平滑趋势线
+        sns.regplot(
+            data=df,
+            x="season_year",
+            y="avg_duration",
+            lowess=True,
+            scatter=False,
+            color="black",
+            line_kws={"linewidth": 2, "linestyle": "--", "label": "平滑趋势"},
+        )
+
         plt.title(kwargs.get("title", "NBA 比赛平均时长演变趋势"), fontsize=16)
         plt.xlabel("年份", fontsize=12)
         plt.ylabel("时长 (分钟)", fontsize=12)
         plt.xticks(rotation=45)
+        plt.legend()
         plt.tight_layout()
