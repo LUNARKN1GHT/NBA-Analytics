@@ -26,4 +26,6 @@ class GameAnalyzer(BaseAnalyzer):
 
         df["duration_ma3"] = df["avg_duration"].rolling(window=3, min_periods=3).mean()
 
+        BaseAnalyzer._save_data(df, "game", "avg_duration")
+
         return df
