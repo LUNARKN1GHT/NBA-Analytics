@@ -17,6 +17,7 @@ class NBAVisualizer:
         self.task_map = {
             "duration": "game_analysis",
             "home_advantage_trend": "game_analysis",
+            "three_attempt_trend": "game_analysis",
             "clutch_efficiency": "player_clutch",
             "decision_matrix": "player_clutch",
             "team_efficiency": "team_analysis",
@@ -153,5 +154,29 @@ class NBAVisualizer:
         plt.xlabel("赛季", fontsize=12)
         plt.ylabel("胜率差异 (主场 - 客场 %)", fontsize=12)
         plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+
+    @staticmethod
+    def _plot_three_attempt_trend(df, **kwargs):
+        """绘制三分占比变化"""
+        plt.figure(figsize=(12, 6))
+
+        # 主要趋势线
+        plt.plot(
+            df["season"],
+            df["fg3a_pct"],
+            marker="o",
+            linestyle="-",
+            color="orange",
+            linewidth=2.5,
+            label="三分出手比例",
+            alpha=0.7,
+        )
+
+        plt.title(kwargs.get("title", "三分出手占比演变趋势"), fontsize=16)
+        plt.xlabel("年份", fontsize=12)
+        plt.ylabel("出手占比", fontsize=12)
+        plt.xticks(rotation=45)
         plt.legend()
         plt.tight_layout()

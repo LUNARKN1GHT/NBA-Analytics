@@ -15,6 +15,11 @@ def main():
     viz = NBAVisualizer()
     viz.plot("home_advantage_trend", home_advantage, title="主场优势分析")
 
+    print("📊 正在执行：三分出手趋势...")
+    three_attempt_df = nba.analyze_three_attempt_trend()
+    viz = NBAVisualizer()
+    viz.plot("three_attempt_trend", three_attempt_df, title="三分出手比例")
+
     nba.disconnect()
 
 

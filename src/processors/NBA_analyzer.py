@@ -33,3 +33,6 @@ class NBAAnalyzer:
 
     def analyze_home_advantage(self):
         return self.game_analyzer.home_advantage()
+
+    def analyze_three_attempt_trend(self):
+        return self.game_analyzer.three_attempt_trend()
