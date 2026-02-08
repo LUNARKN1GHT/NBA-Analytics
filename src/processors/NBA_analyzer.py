@@ -30,3 +30,6 @@ class NBAAnalyzer:
 
     def analyze_duration(self):
         return self.game_analyzer.analyze_game_duration_trend()
+
+    def analyze_home_advantage(self):
+        return self.game_analyzer.home_advantage()

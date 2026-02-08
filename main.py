@@ -10,6 +10,11 @@ def main():
     viz = NBAVisualizer()
     viz.plot("duration", duration_df, title="联盟历年时长演变")
 
+    print("📊 正在执行：主场优势分析...")
+    home_advantage = nba.analyze_home_advantage()
+    viz = NBAVisualizer()
+    viz.plot("home_advantage_trend", home_advantage, title="主场优势分析")
+
     nba.disconnect()
 
 

@@ -16,7 +16,7 @@ class NBAVisualizer:
         # 任务类型与保存子目录的映射关系
         self.task_map = {
             "duration": "game_analysis",
-            "home_advantage": "game_analysis",
+            "home_advantage_trend": "game_analysis",
             "clutch_efficiency": "player_clutch",
             "decision_matrix": "player_clutch",
             "team_efficiency": "team_analysis",
@@ -101,5 +101,57 @@ class NBAVisualizer:
         plt.xlabel("年份", fontsize=12)
         plt.ylabel("时长 (分钟)", fontsize=12)
         plt.xticks(rotation=45)
+        plt.legend()
+        plt.tight_layout()
+
+    @staticmethod
+    def _plot_home_advantage_trend(df, **kwargs):
+        """具体的主场优势趋势绘图逻辑"""
+        # 按赛季计算全联盟平均主场优势
+        trend = df.groupby("season_id")["ha_diff"].mean().reset_index()
+
+        # 添加滑动平均列
+        trend["ha_diff_ma3"] = trend["ha_diff"].rolling(window=3, min_periods=3).mean()
+
+        plt.figure(figsize=(12, 6))
+
+        # 主要趋势线
+        plt.plot(
+            trend["season_id"].astype(str),
+            trend["ha_diff"],
+            marker="o",
+            linestyle="-",
+            color="orange",
+            linewidth=2.5,
+            label="原始数据",
+            alpha=0.7,
+        )
+
+        # 添加阴影区间 (±2%) 增加专业感
+        plt.fill_between(
+            range(len(trend)),
+            trend["ha_diff"] * 0.98,
+            trend["ha_diff"] * 1.02,
+            alpha=0.1,
+            color="orange",
+        )
+
+        # 3年滑动平均线
+        plt.plot(
+            trend["season_id"].astype(str),
+            trend["ha_diff_ma3"],
+            linewidth=3,
+            color="#C9082A",
+            label="3年滑动平均",
+        )
+
+        plt.axhline(0, color="black", linewidth=1)
+        plt.xticks(
+            range(len(trend)), trend["season_id"].astype(str), rotation=45, fontsize=10
+        )
+        plt.title(kwargs.get("title", "NBA 联盟主场优势趋势分析"), fontsize=16)
+        plt.xlabel("赛季", fontsize=12)
+        plt.ylabel("胜率差异 (主场 - 客场 %)", fontsize=12)
+        plt.grid(True, alpha=0.3)
         plt.legend()
         plt.tight_layout()
