@@ -1,6 +1,8 @@
 import os
+from typing import Callable, Dict
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 
 import config
@@ -23,7 +25,13 @@ class NBAVisualizer:
             "team_efficiency": "team_analysis",
         }
 
-    def _save_logic(self, task_type, fig_name):
+        self._plotters: Dict[str, Callable[[pd.DataFrame], None]] = {
+            "duration": self._plot_duration,
+            "home_advantage_trend": self._plot_home_advantage_trend,
+            "three_attempt_trend": self._plot_three_attempt_trend,
+        }
+
+    def _save_logic(self, task_type: str, fig_name: str) -> None:
         """内部通用保存逻辑"""
         sub_dir = self.task_map.get(task_type, "misc")
         save_path = os.path.join(config.REPORTS_DIR, sub_dir)
@@ -35,28 +43,20 @@ class NBAVisualizer:
         print(f"📈 绘图完成，保存至: {full_path}")
 
     def plot(self, task_type, df, **kwargs):
-        """
-        统一分发接口
-        :param task_type: 任务名称 (如 'decision_matrix')
-        :param df: 数据源
-        :param kwargs: 额外的绘图参数（如标题、标注数量等）
-        """
         if df.empty:
             print(f"⚠️ {task_type} 数据为空，跳过绘图。")
             return
 
-        # 动态调用私有绘图方法
-        method_name = f"_plot_{task_type}"
-        if hasattr(self, method_name):
-            getattr(self, method_name)(df, **kwargs)
-            self._save_logic(task_type, task_type)
-        else:
-            print(f"❌ 未定义绘图方法: {method_name}")
+        plotter = self._plotters.get(task_type)
+        if plotter is None:
+            raise ValueError(f"未支持的绘图任务：{task_type}")
+
+        plotter(df)
+        self._save_logic(task_type, task_type)
 
     # --- 私有绘图函数 ---
 
-    @staticmethod
-    def _plot_duration(df, **kwargs):
+    def _plot_duration(self, df, **kwargs):
         """具体的时长趋势绘图逻辑"""
         plt.figure(figsize=(12, 6))
         sns.lineplot(
@@ -105,8 +105,7 @@ class NBAVisualizer:
         plt.legend()
         plt.tight_layout()
 
-    @staticmethod
-    def _plot_home_advantage_trend(df, **kwargs):
+    def _plot_home_advantage_trend(self, df, **kwargs):
         """具体的主场优势趋势绘图逻辑"""
         # 按赛季计算全联盟平均主场优势
         trend = df.groupby("season_id")["ha_diff"].mean().reset_index()
@@ -157,8 +156,7 @@ class NBAVisualizer:
         plt.legend()
         plt.tight_layout()
 
-    @staticmethod
-    def _plot_three_attempt_trend(df, **kwargs):
+    def _plot_three_attempt_trend(self, df, **kwargs):
         """绘制三分占比变化"""
         plt.figure(figsize=(12, 6))
 
