@@ -4,7 +4,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 基础路径
 DATA_RAW = os.path.join(BASE_DIR, "data", "raw")
-DB_PATH = os.path.join(BASE_DIR, "data", "raw", "nba.sqlite")
 DATA_PROCESSED = os.path.join(BASE_DIR, "data", "processed")
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 
