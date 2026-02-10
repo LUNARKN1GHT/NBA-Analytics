@@ -1,6 +1,8 @@
 import sqlite3
+from typing import Literal
 
 import pandas as pd
+from nba_api.stats.endpoints import commonallplayers
 
 from config import DB_PATH
 
@@ -49,3 +51,52 @@ class NBALoader:
                 # 如果表不存在, 利用 pandas 存入 0 行数据来快速建立表头
                 df.head(0).to_sql(table_name, conn, index=False, if_exists="replace")
                 print(f"已自动初始化表结构: {table_name}")
+
+    def _save_to_sqlite(
+            self,
+            df: pd.DataFrame,
+            category: str,
+            table_name: str,
+            if_exists: Literal["fail", "replace", "append", "delete_rows"] = "append",
+    ):
+        """通用的数据保存方法。
+
+        Args:
+            df: 要保存的 Pandas DataFrame。
+            category: 数据分类（如 'player', 'team'）。
+            table_name: 具体表格名（如 'info', 'stats'）。
+            if_exists: 如果表存在怎么处理 ('append', 'replace')。
+        """
+        if df.empty:
+            print("警告: 收到空数据帧, 跳过保存. ")
+            return
+
+        # 自动构建带前缀的完整表名
+        full_table_name = f"{category}_{table_name}"
+
+        # 初始化表格 (确保列对齐)
+        self._init_table_if_not_exists(full_table_name, df)
+
+        # 写入数据
+        try:
+            with self._get_connection() as conn:
+                df.to_sql(full_table_name, conn, if_exists=if_exists, index=False)
+            print(f"--- 成功更新表 [{full_table_name}]，影响行数：{len(df)} ---")
+        except Exception as e:
+            print(f"错误：写入表 {full_table_name} 失败。具体原因: {e}")
+
+    def fetch_all_players(self):
+        """获取全联盟球员基础信息列表并存入 player_info 表"""
+        print("正在从 NBA API 获取全联盟球员名单...")
+
+        try:
+            # is_only_current_season=0 获取历史所有球员
+            raw_data = commonallplayers.CommonAllPlayers(is_only_current_season=0)
+            df = raw_data.get_data_frames()[0]
+
+            self._save_to_sqlite(
+                df, category="player", table_name="info", if_exists="replace"
+            )
+
+        except Exception as e:
+            print(f"获取球员名单失败: {e}")
