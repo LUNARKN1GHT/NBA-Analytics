@@ -1,5 +1,6 @@
 import sqlite3
-from typing import Literal
+import time
+from typing import Literal, List
 
 import pandas as pd
 from nba_api.stats.endpoints import commonallplayers
@@ -28,6 +29,27 @@ class NBALoader:
         print("--- NBALoader 初始化成功 ---")
         print(f"--- 目标数据库: {self.db_path} ---")
 
+    def _get_existing_ids(self, full_table_name: str, id_column: str) -> set:
+        """从数据库中获取已存在的唯一 ID 集合。
+
+        Args:
+            full_table_name: 完整的表名（如 player_stats）。
+            id_column: 表中代表球员 ID 的列名（通常是 PLAYER_ID）。
+
+        Returns:
+            包含所有已存在 ID 的集合（set）。
+        """
+        try:
+            with self._get_connection() as conn:
+                # 使用 SQL 的 DISTINCT 提高查询效率
+                query = f"SELECT DISTINCT {id_column} FROM {full_table_name}"
+                df = pd.read_sql(query, conn)
+                return set(df[id_column].tolist())
+        except Exception:
+            print(f"有球员尚未创建: {Exception}")
+            # 如果表还没创建，查询会报错，此时返回空集即可
+            return set()
+
     def _get_connection(self):
         """创建一个数据库连接对象。"""
         return sqlite3.connect(self.db_path)
@@ -51,6 +73,52 @@ class NBALoader:
                 # 如果表不存在, 利用 pandas 存入 0 行数据来快速建立表头
                 df.head(0).to_sql(table_name, conn, index=False, if_exists="replace")
                 print(f"已自动初始化表结构: {table_name}")
+
+    def fetch_player_career(self, player_ids: List[int]):
+        """批量获取并存储球员的职业生涯统计数据。
+
+        该方法会自动过滤掉数据库中已经存在的球员 ID，实现增量存储。
+
+        Args:
+            player_ids: 待获取数据的球员 ID 列表。
+        """
+        full_table_name = "player_stats"
+
+        # 检查数据库中已有的 ID
+        existing_ids = self._get_existing_ids(full_table_name, "PLAYER_ID")
+
+        # 过滤掉已存在的 ID，只下载“新”球员
+        new_ids = [pid for pid in player_ids if pid not in existing_ids]
+
+        if not new_ids:
+            print(
+                f"--- [提示] 所选的 {len(player_ids)} 位球员数据均已存在，跳过下载 ---"
+            )
+            return
+
+        print(f"--- [增量下载] 准备获取 {len(new_ids)} 位新球员的数据 ---")
+
+        for pid in new_ids:
+            try:
+                from nba_api.stats.endpoints import playercareerstats
+
+                print(f"正在获取球员 ID: {pid} 的数据...")
+
+                raw_data = playercareerstats.PlayerCareerStats(player_id=pid)
+                df = raw_data.get_data_frames()[0]
+
+                # 3. 调用通用保存方法，category="player", table_name="stats"
+                # 拼接后即为 "player_stats"
+                self._save_to_sqlite(
+                    df, category="player", table_name="stats", if_exists="append"
+                )
+
+                # 礼貌性延迟，防止请求过快
+                time.sleep(0.8)
+
+            except Exception as e:
+                print(f"获取球员 {pid} 失败: {e}")
+                continue
 
     def _save_to_sqlite(
             self,
