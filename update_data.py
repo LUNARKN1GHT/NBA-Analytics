@@ -9,6 +9,8 @@ def main():
 
     print(f"当前数据库配置路径为: {loader.db_path}")
 
+    loader.fetch_all_players()
+
 
 if __name__ == "__main__":
     main()
