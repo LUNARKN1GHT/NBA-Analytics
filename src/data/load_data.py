@@ -3,7 +3,7 @@ import time
 from typing import Literal, List
 
 import pandas as pd
-from nba_api.stats.endpoints import commonallplayers
+from nba_api.stats.endpoints import commonallplayers, leaguegamefinder
 
 from config import DB_PATH
 
@@ -120,46 +120,50 @@ class NBALoader:
                 print(f"获取球员 {pid} 失败: {e}")
                 continue
 
-    def fetch_games(self, season: str = "2023-24"):
+    def fetch_games(self, seasons: List[str] = "2023-24"):
         """批量获取指定赛季的全联盟比赛记录并存入数据库。
 
         Args:
-            season: 赛季字符串，格式如 '2023-24'。
+            seasons: 赛季字符串列表，格式如 '2023-24'。
         """
         full_table_name = "game_log"
-        print(f"--- [开始下载] 正在获取 {season} 赛季的全联盟比赛记录 ---")
+        print(f"--- [开始下载] 正在获取 {seasons} 赛季的全联盟比赛记录 ---")
 
-        try:
-            game_finder = leaguegamefinder.LeagueGameFinder(
-                season_nullable=season, league_id_nullable="00"  # 00 表示NBA
-            )
-            df_all = game_finder.get_data_frames()[0]
+        for season in seasons:
+            # 访问休眠，防止封禁
+            time.sleep(1.0)
 
-            if df_all.empty:
-                print(f"未找到 {season} 赛季的任何比赛")
-                return
-
-            # 检查数据库中存在的 GAME_ID
-            existing_game_ids = self._get_existing_ids(full_table_name, "GAME_ID")
-
-            # 过滤掉已存在的比赛
-            df_new = df_all[~df_all["GAME_ID"].isin(existing_game_ids)]
-
-            if df_new.empty:
-                print(
-                    f"--- [提示] {season} 赛季的所有比赛记录已在数据库中，无需更新 ---"
+            try:
+                game_finder = leaguegamefinder.LeagueGameFinder(
+                    season_nullable=season, league_id_nullable="00"  # 00 表示NBA
                 )
-                return
+                df_all = game_finder.get_data_frames()[0]
 
-            print(f"检测到 {len(df_new)} 条新比赛记录，正在写入...")
+                if df_all.empty:
+                    print(f"未找到 {season} 赛季的任何比赛")
+                    continue
 
-            # 保存数据
-            self._save_to_sqlite(
-                df_new, category="game", table_name="log", if_exists="append"
-            )
+                # 检查数据库中存在的 GAME_ID
+                existing_game_ids = self._get_existing_ids(full_table_name, "GAME_ID")
 
-        except Exception as e:
-            print(f"获取比赛记录失败：{e}")
+                # 过滤掉已存在的比赛
+                df_new = df_all[~df_all["GAME_ID"].isin(existing_game_ids)]
+
+                if df_new.empty:
+                    print(
+                        f"--- [提示] {season} 赛季的所有比赛记录已在数据库中，无需更新 ---"
+                    )
+                    continue
+
+                print(f"检测到 {season} 赛季的 {len(df_new)} 条新比赛记录，正在写入...")
+
+                # 保存数据
+                self._save_to_sqlite(
+                    df_new, category="game", table_name="log", if_exists="append"
+                )
+
+            except Exception as e:
+                print(f"获取比赛记录失败：{e}")
 
     def _save_to_sqlite(
             self,
