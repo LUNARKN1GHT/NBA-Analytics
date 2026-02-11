@@ -219,18 +219,33 @@ class NBALoader:
                 return
 
     def fetch_player_game_logs(self, player_ids: List[int], seasons: List[str]):
-        """获取特定球员的个人比赛日志"""
+        """获取特定球员的个人比赛日志
+
+        支持多球员多赛季批量处理
+
+        Args:
+            player_ids: 球员 ID 的列表
+            seasons: 赛季列表
+
+        Returns:
+            全部比赛 ID
+        """
         full_table_name = "player_game_log"
 
-        print(f"--- 正在获取球员 {player_ids} 的 {seasons} 赛季赛程 ---")
+        print(f"--- 正在获取 {len(player_ids)} 名球员在 {seasons} 赛季的赛程 ---")
 
         all_game_ids = []
+        total_new_games = 0
 
         for player_id in player_ids:
             self._pause()
+            player_game_ids = []  # 当前球员的比赛ID
+
             for season in seasons:
                 self._pause()
                 try:
+                    print(f"正在获取球员 {player_id} 的 {season} 赛季数据...")
+
                     player_game_log = playergamelog.PlayerGameLog(
                         player_id=player_id, season=season
                     )
@@ -254,8 +269,9 @@ class NBALoader:
                         )
                         continue
 
+                    new_games_count = len(df_new)
                     print(
-                        f"检测到 {season} 赛季的 {len(df_new)} 条新比赛记录，正在写入..."
+                        f"检测到 {season} 赛季的 {new_games_count} 条新比赛记录，正在写入..."
                     )
 
                     self._save_to_sqlite(
@@ -265,21 +281,37 @@ class NBALoader:
                         if_exists="append",
                     )
 
-                    # 收集 Game_ID 用于返回
-                    all_game_ids.extend(df_new["Game_ID"].unique().tolist())
+                    # 收集当前球员的比赛ID
+                    season_game_ids = df_new["Game_ID"].unique().tolist()
+                    player_game_ids.extend(season_game_ids)
+                    all_game_ids.extend(season_game_ids)
+                    total_new_games += new_games_count
 
                 except Exception as e:
-                    print(f"获取球员赛程失败：{e}")
+                    print(f"获取球员 {player_id} 在 {season} 赛季的赛程失败：{e}")
                     continue
 
-            if all_game_ids:
+            # 每个球员处理完后汇报
+            if player_game_ids:
                 print(
-                    f"--- 成功获取球员 {player_id} 共 {len(all_game_ids)} 场新比赛的 Game_ID ---"
+                    f"--- 球员 {player_id} 处理完成，新增 {len(set(player_game_ids))} 场比赛记录 ---"
                 )
             else:
                 print(f"--- 球员 {player_id} 在指定赛季内没有新的比赛记录 ---")
 
-        return list(set(all_game_ids))  # 去重后返回
+        # 所有球员处理完后汇报总体情况
+        unique_game_ids = list(set(all_game_ids))
+        if unique_game_ids:
+            print(
+                f"--- 批量处理完成：共处理 {len(player_ids)} 名球员，"
+                f"新增 {len(unique_game_ids)} 场不重复比赛，总计 {total_new_games} 条记录 ---"
+            )
+        else:
+            print(
+                f"--- 批量处理完成：共处理 {len(player_ids)} 名球员，无新增比赛记录 ---"
+            )
+
+        return unique_game_ids
 
     def _save_to_sqlite(
         self,
