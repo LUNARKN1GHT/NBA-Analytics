@@ -213,32 +213,61 @@ class NBALoader:
                 print(f"获取比赛 {gid} 的 PBP 失败：{str(e)}[:100]")
                 return
 
-    def fetch_player_game_logs(self, player_id: int, season: str = "2023-24"):
+    def fetch_player_game_logs(self, player_id: int, seasons: List[str]):
         """获取特定球员的个人比赛日志"""
         full_table_name = "player_game_log"
 
-        print(f"--- 正在获取球员 {player_id} 的 {season} 赛季赛程 ---")
+        print(f"--- 正在获取球员 {player_id} 的 {seasons} 赛季赛程 ---")
 
-        try:
-            player_game_log = playergamelog.PlayerGameLog(
-                player_id=player_id, season=season
+        all_game_ids = []
+
+        for season in seasons:
+            try:
+                player_game_log = playergamelog.PlayerGameLog(
+                    player_id=player_id, season=season
+                )
+                df = player_game_log.get_data_frames()[0]
+
+                if df.empty:
+                    print(f"未找到球员 {player_id} 在 {season} 赛季的比赛记录。")
+                    continue
+
+                # 检查数据库中已存在的 Game_ID
+                existing_game_ids = self._get_existing_ids(full_table_name, "Game_ID")
+
+                # 过滤掉已存在的比赛记录
+                df_new = df[~df["Game_ID"].isin(existing_game_ids)]
+
+                if df_new.empty:
+                    print(
+                        f"--- [提示] 球员 {player_id} 在 {season} 赛季的所有比赛记录已存在 ---"
+                    )
+                    continue
+
+                print(f"检测到 {season} 赛季的 {len(df_new)} 条新比赛记录，正在写入...")
+
+                self._save_to_sqlite(
+                    df_new, category="player", table_name="game_log", if_exists="append"
+                )
+
+                # 收集 Game_ID 用于返回
+                all_game_ids.extend(df_new["Game_ID"].unique().tolist())
+
+                # 礼貌性延迟，防止请求过快
+                time.sleep(0.8)
+
+            except Exception as e:
+                print(f"获取球员赛程失败：{e}")
+                continue
+
+        if all_game_ids:
+            print(
+                f"--- 成功获取球员 {player_id} 共 {len(all_game_ids)} 场新比赛的 Game_ID ---"
             )
-            df = player_game_log.get_data_frames()[0]
+        else:
+            print(f"--- 球员 {player_id} 在指定赛季内没有新的比赛记录 ---")
 
-            if df.empty:
-                print(f"未找到球员 {player_id} 在 {season} 赛季的比赛记录。")
-                return []
-
-            self._save_to_sqlite(
-                df, category="player", table_name="game_log", if_exists="append"
-            )
-
-            # 返回 Game_ID 列表，方便后续直接链式调用 PBP 下载
-            return df["Game_ID"].unique().tolist()
-
-        except Exception as e:
-            print(f"获取球员赛程失败：{e}")
-            return []
+        return list(set(all_game_ids))  # 去重后返回
 
     def _save_to_sqlite(
             self,
