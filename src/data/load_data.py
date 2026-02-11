@@ -282,11 +282,11 @@ class NBALoader:
         return list(set(all_game_ids))  # 去重后返回
 
     def _save_to_sqlite(
-            self,
-            df: pd.DataFrame,
-            category: str,
-            table_name: str,
-            if_exists: Literal["fail", "replace", "append", "delete_rows"] = "append",
+        self,
+        df: pd.DataFrame,
+        category: str,
+        table_name: str,
+        if_exists: Literal["fail", "replace", "append", "delete_rows"] = "append",
     ):
         """通用的数据保存方法。
 
