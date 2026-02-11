@@ -6,7 +6,7 @@ import pandas as pd
 from nba_api.stats.endpoints import (
     commonallplayers,
     leaguegamefinder,
-    playbyplayv3,
+    playbyplay,
     playergamelog,
 )
 
@@ -175,49 +175,6 @@ class NBALoader:
             except Exception as e:
                 print(f"获取比赛记录失败：{e}")
 
-    def fetch_play_by_play(self, game_ids: List[str]):
-        full_table_name = "game_pbp"
-
-        # 检查数据库中已有的 GAME_ID，避免重复下载
-        existing_game_ids = self._get_existing_ids(full_table_name, "GAME_ID")
-
-        # 过滤已下载的比赛记录
-        new_game_ids = [gid for gid in game_ids if gid not in existing_game_ids]
-
-        if not new_game_ids:
-            print("--- [提示] 所有请求的比赛 PBP 数据已存在 ---")
-            return
-
-        print(f"--- [开始下载] 准备获取 {len(new_game_ids)} 场比赛的 PBP 数据 ---")
-
-        for gid in new_game_ids:
-            try:
-                print(f"正在获取比赛 PBP：{gid}...")
-
-                # 获取数据
-                pbp = playbyplayv3.PlayByPlayV3(game_id=gid)
-                dfs = pbp.get_data_frames()
-
-                if not dfs or len(dfs) == 0:
-                    print(f"比赛 {gid} 返回了空数据")
-                    continue
-
-                # 检查数据是否有效
-                df = dfs[0]
-                if df.empty:
-                    print(f"比赛 {gid} 的PBP数据为空")
-                    continue
-
-                self._save_to_sqlite(
-                    df, category="game", table_name="pbp", if_exists="append"
-                )
-
-                time.sleep(1.2)
-
-            except Exception as e:
-                print(f"获取比赛 {gid} 的 PBP 失败：{str(e)}[:100]")
-                return
-
     def fetch_player_game_logs(self, player_ids: List[int], seasons: List[str]):
         """获取特定球员的个人比赛日志
 
@@ -312,6 +269,67 @@ class NBALoader:
             )
 
         return unique_game_ids
+
+    def fetch_pbp_data(self, game_ids: List[str]):
+        full_table_name = "game_pbp"
+
+        if not game_ids:
+            print("--- [提示] 传入的比赛 ID 列表为空, 跳过 PBP 下载 ---")
+            return
+
+        # 检查 game_pbp 表中是否 已经存在这些比赛
+        existing_pbp_ids = self._get_existing_ids(full_table_name, "GAME_ID")
+
+        # 过滤掉库里已有的比赛 ID
+        todo_game_ids = [gid for gid in game_ids if gid not in existing_pbp_ids]
+
+        if not todo_game_ids:
+            print(
+                f"--- [提示] 传入的 {len(game_ids)} 场比赛的 PBP 均已存在于数据库中 ---"
+            )
+            return
+
+        print(f"--- [开始下载] 准备获取 {len(todo_game_ids)} 场比赛的 PBP 细节数据 ---")
+
+        success_count = 0
+        for index, gid in enumerate(todo_game_ids):
+            self._pause()
+
+            try:
+                print(f"[{index+1}/{len(todo_game_ids)}] 正在下载比赛 PBP: {gid}...")
+
+                p_p = playbyplay.PlayByPlay(game_id=gid)
+                df = p_p.get_data_frames()[0]
+
+                if df.empty:
+                    print(f"警告: 比赛 {gid} 返回了空 PBP 数据.")
+                    continue
+
+                self._save_to_sqlite(
+                    df, category="game", table_name="pbp", if_exists="append"
+                )
+
+                success_count += 1
+
+            except Exception as e:
+                print(f"获取比赛 {gid} 的 PBP 失败: {e}")
+                time.sleep(5)
+                continue
+
+        print(f"--- [下载完成] 成功获取 {success_count} 场比赛的 PBP 数据 ---")
+
+    def get_local_player_game_ids(self, player_id: int) -> List[str]:
+        """直接从本地数据库读取该球员已有的比赛 ID, 无需联网."""
+        full_table_name = "player_game_log"
+
+        try:
+            with self._get_connection() as conn:
+                # 筛选特定球员的 ID
+                query = f"SELECT DISTINCT game_id FROM {full_table_name} WHERE player_id = {player_id}"
+                df = pd.read_sql(query, conn)
+                return df["Game_ID"].tolist()
+        except Exception:
+            return []
 
     def _save_to_sqlite(
         self,
