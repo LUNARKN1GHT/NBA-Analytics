@@ -1,6 +1,5 @@
 # main.py
 
-from config import seasons
 from src.data.load_data import NBALoader
 
 
@@ -19,7 +18,12 @@ def main():
     # loader.fetch_all_players()
 
     # 获取某一年的比赛数据
-    loader.fetch_games(seasons=seasons)
+    # loader.fetch_games(seasons=seasons)
+
+    # 获取所有比赛的 pbp 数据
+
+    # 获取比赛 PBP数据
+    loader.fetch_play_by_play(game_ids=["0022200165"])
 
 
 if __name__ == "__main__":

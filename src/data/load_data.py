@@ -165,6 +165,49 @@ class NBALoader:
             except Exception as e:
                 print(f"获取比赛记录失败：{e}")
 
+    def fetch_play_by_play(self, game_ids: List[str]):
+        full_table_name = "game_pbp"
+
+        # 检查数据库中已有的 GAME_ID，避免重复下载
+        existing_game_ids = self._get_existing_ids(full_table_name, "GAME_ID")
+
+        # 过滤已下载的比赛记录
+        new_game_ids = [gid for gid in game_ids if gid not in existing_game_ids]
+
+        if not new_game_ids:
+            print("--- [提示] 所有请求的比赛 PBP 数据已存在 ---")
+            return
+
+        print(f"--- [开始下载] 准备获取 {len(new_game_ids)} 场比赛的 PBP 数据 ---")
+
+        for gid in new_game_ids:
+            try:
+                print(f"正在获取比赛 PBP：{gid}...")
+
+                # 获取数据
+                pbp = playbyplayv3.PlayByPlayV3(game_id=gid)
+                dfs = pbp.get_data_frames()
+
+                if not dfs or len(dfs) == 0:
+                    print(f"比赛 {gid} 返回了空数据")
+                    continue
+
+                # 检查数据是否有效
+                df = dfs[0]
+                if df.empty:
+                    print(f"比赛 {gid} 的PBP数据为空")
+                    continue
+
+                self._save_to_sqlite(
+                    df, category="game", table_name="pbp", if_exists="append"
+                )
+
+                time.sleep(1.2)
+
+            except Exception as e:
+                print(f"获取比赛 {gid} 的 PBP 失败：{str(e)}[:100]")
+                return
+
     def _save_to_sqlite(
             self,
             df: pd.DataFrame,
