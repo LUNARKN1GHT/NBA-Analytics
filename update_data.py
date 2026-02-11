@@ -26,7 +26,7 @@ def main():
     # 获取比赛 PBP数据
     # loader.fetch_play_by_play(game_ids=["0022200165"])
 
-    loader.fetch_player_game_logs(player_id=201939, seasons=seasons)
+    loader.fetch_player_game_logs(player_ids=[201939, 2544, 201142], seasons=seasons)
 
 
 if __name__ == "__main__":
