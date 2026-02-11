@@ -23,7 +23,9 @@ def main():
     # 获取所有比赛的 pbp 数据
 
     # 获取比赛 PBP数据
-    loader.fetch_play_by_play(game_ids=["0022200165"])
+    # loader.fetch_play_by_play(game_ids=["0022200165"])
+
+    loader.fetch_player_game_logs(player_id=201939)
 
 
 if __name__ == "__main__":

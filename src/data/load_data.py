@@ -3,7 +3,12 @@ import time
 from typing import Literal, List
 
 import pandas as pd
-from nba_api.stats.endpoints import commonallplayers, leaguegamefinder
+from nba_api.stats.endpoints import (
+    commonallplayers,
+    leaguegamefinder,
+    playbyplayv3,
+    playergamelog,
+)
 
 from config import DB_PATH
 
@@ -207,6 +212,33 @@ class NBALoader:
             except Exception as e:
                 print(f"获取比赛 {gid} 的 PBP 失败：{str(e)}[:100]")
                 return
+
+    def fetch_player_game_logs(self, player_id: int, season: str = "2023-24"):
+        """获取特定球员的个人比赛日志"""
+        full_table_name = "player_game_log"
+
+        print(f"--- 正在获取球员 {player_id} 的 {season} 赛季赛程 ---")
+
+        try:
+            player_game_log = playergamelog.PlayerGameLog(
+                player_id=player_id, season=season
+            )
+            df = player_game_log.get_data_frames()[0]
+
+            if df.empty:
+                print(f"未找到球员 {player_id} 在 {season} 赛季的比赛记录。")
+                return []
+
+            self._save_to_sqlite(
+                df, category="player", table_name="game_log", if_exists="append"
+            )
+
+            # 返回 Game_ID 列表，方便后续直接链式调用 PBP 下载
+            return df["Game_ID"].unique().tolist()
+
+        except Exception as e:
+            print(f"获取球员赛程失败：{e}")
+            return []
 
     def _save_to_sqlite(
             self,
