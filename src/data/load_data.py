@@ -24,6 +24,8 @@ class NBALoader:
         """初始化 NBALoader, 设置数据库路径."""
         self.db_path = DB_PATH
 
+        self.sleep_time = 1.5
+
         # 预定义核心表的关键约束
         self.table_schemas = {
             "player_info": "PERSON_ID INTEGER PRIMARY KEY",
@@ -54,6 +56,9 @@ class NBALoader:
             print(f"有球员尚未创建: {Exception}")
             # 如果表还没创建，查询会报错，此时返回空集即可
             return set()
+
+    def _pause(self):
+        time.sleep(self.sleep_time)
 
     def _get_connection(self):
         """创建一个数据库连接对象。"""
