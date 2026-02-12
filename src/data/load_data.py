@@ -6,7 +6,7 @@ import pandas as pd
 from nba_api.stats.endpoints import (
     commonallplayers,
     leaguegamefinder,
-    playbyplay,
+    playbyplayv3,
     playergamelog,
 )
 
@@ -298,7 +298,7 @@ class NBALoader:
             try:
                 print(f"[{index+1}/{len(todo_game_ids)}] 正在下载比赛 PBP: {gid}...")
 
-                p_p = playbyplay.PlayByPlay(game_id=gid)
+                p_p = playbyplayv3.PlayByPlayV3(game_id=gid)
                 df = p_p.get_data_frames()[0]
 
                 if df.empty:
