@@ -59,7 +59,7 @@ class NBALoader:
             return set()
 
     def _pause(self):
-        self._pause()
+        time.sleep(self.sleep_time)
 
     def _get_connection(self):
         """创建一个数据库连接对象。"""
