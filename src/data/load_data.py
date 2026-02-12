@@ -7,6 +7,7 @@ from nba_api.stats.endpoints import (
     leaguegamefinder,
     playbyplayv3,
     playergamelog,
+    playercareerstats,
 )
 from tqdm.auto import tqdm
 
@@ -110,8 +111,6 @@ class NBALoader:
 
         for pid in pbar:
             try:
-                from nba_api.stats.endpoints import playercareerstats
-
                 raw_data = playercareerstats.PlayerCareerStats(player_id=pid)
                 df = raw_data.get_data_frames()[0]
 
