@@ -3,12 +3,49 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 # 全局日志配置
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)%s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+def setup_logger():
+    """Setup global logger configuration"""
+    # 创建logs目录
+    logs_dir = os.path.join(BASE_DIR, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # 配置日志格式
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
+    # 创建logger
+    logger = logging.getLogger("nba_analytics")
+    logger.setLevel(logging.INFO)
+
+    # 清除现有的handlers（避免重复添加）
+    logger.handlers.clear()
+
+    # 控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # 文件处理器
+    log_file = os.path.join(logs_dir, "nba_analytics.log")
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # 错误日志单独文件
+    error_log_file = os.path.join(logs_dir, "nba_analytics_error.log")
+    error_handler = logging.FileHandler(error_log_file, encoding="utf-8")
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(formatter)
+    logger.addHandler(error_handler)
+
+    return logger
+
+
+# 创建全局logger实例
+logger = setup_logger()
 
 
 # 赛季列表
