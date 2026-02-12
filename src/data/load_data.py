@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from typing import Literal, List
 
 import pandas as pd
@@ -11,7 +12,7 @@ from nba_api.stats.endpoints import (
 )
 from tqdm.auto import tqdm
 
-from config import DB_PATH
+from config import DB_PATH, logger
 
 
 class NBALoader:
@@ -34,8 +35,8 @@ class NBALoader:
             "game_log": "GAME_ID TEXT PRIMARY KEY",
         }
 
-        print("--- NBALoader 初始化成功 ---")
-        print(f"--- 目标数据库: {self.db_path} ---")
+        logger.info("--- NBALoader initialized successfully ---")
+        logger.info(f"--- Target database: {self.db_path} ---")
 
     def _get_existing_ids(self, full_table_name: str, id_column: str) -> set:
         """从数据库中获取已存在的唯一 ID 集合。
@@ -53,17 +54,19 @@ class NBALoader:
                 query = f"SELECT DISTINCT {id_column} FROM {full_table_name}"
                 df = pd.read_sql(query, conn)
                 return set(df[id_column].tolist())
-        except Exception:
-            print(f"有球员尚未创建: {Exception}")
-            # 如果表还没创建，查询会报错，此时返回空集即可
-            return set()
+        except sqlite3.Error as e:
+            logger.warning(f"Database error when querying table {full_table_name}: {e}")
 
     def _pause(self):
         time.sleep(self.sleep_time)
 
     def _get_connection(self):
         """创建一个数据库连接对象。"""
-        return sqlite3.connect(self.db_path)
+        try:
+            return sqlite3.connect(self.db_path)
+        except sqlite3.Error as e:
+            logger.error(f"Cannot connect to database {self.db_path}: {e}")
+            raise
 
     def _init_table_if_not_exists(self, table_name: str, df: pd.DataFrame):
         """如果表不存在，则根据 DataFrame 的结构自动创建。
@@ -83,7 +86,7 @@ class NBALoader:
             if not cursor.fetchone():
                 # 如果表不存在, 利用 pandas 存入 0 行数据来快速建立表头
                 df.head(0).to_sql(table_name, conn, index=False, if_exists="replace")
-                print(f"已自动初始化表结构: {table_name}")
+                logger.info(f"Table structure initialized: {table_name}")
 
     def fetch_player_career(self, player_ids: List[int]):
         """批量获取并存储球员的职业生涯统计数据。
@@ -102,12 +105,16 @@ class NBALoader:
         new_ids = [pid for pid in player_ids if pid not in existing_ids]
 
         if not new_ids:
+            logger.info("No new player data to download")
             return
 
-        print(f"--- [增量下载] 准备获取 {len(new_ids)} 位新球员的数据 ---")
+        logger.info(
+            f"--- [Incremental Download] Preparing to fetch data for {len(new_ids)} new players ---"
+        )
 
         pbar = tqdm(new_ids, desc="下载球员数据", unit="人")
         error_count = 0  # 错误计数器
+        success_count = 0
 
         for pid in pbar:
             try:
@@ -120,16 +127,22 @@ class NBALoader:
                     df, category="player", table_name="stats", if_exists="append"
                 )
 
+                success_count += 1
                 # 礼貌性延迟，防止请求过快
                 self._pause()
 
+            except KeyboardInterrupt:
+                logger.info("User interrupted the download process")
+                break
             except Exception as e:
                 error_count += 1
+                logger.warning(f"Error downloading data for player {pid}: {e}")
                 pbar.set_postfix(errors=error_count)
                 continue
 
-        if error_count:
-            tqdm.write(f"球员数据下载完成, 失败 {error_count} 人")
+        logger.info(
+            f"Player data download completed - Success: {success_count}, Failed: {error_count}"
+        )
 
     def fetch_games(self, seasons: List[str] = "2023-24"):
         """批量获取指定赛季的全联盟比赛记录并存入数据库。
@@ -138,11 +151,14 @@ class NBALoader:
             seasons: 赛季字符串列表，格式如 '2023-24'。
         """
         full_table_name = "game_log"
-        print(f"--- [开始下载] 正在获取 {seasons} 赛季的全联盟比赛记录 ---")
+        logger.info(
+            f"--- [Starting Download] Fetching league game records for seasons {seasons} ---"
+        )
 
         error_count = 0
-        pbar = tqdm(seasons, desc="下载赛季数据", unit="赛季")
+        success_count = 0
 
+        pbar = tqdm(seasons, desc="下载赛季数据", unit="赛季")
         for season in pbar:
             # 访问休眠，防止封禁
             self._pause()
@@ -154,6 +170,7 @@ class NBALoader:
                 df_all = game_finder.get_data_frames()[0]
 
                 if df_all.empty:
+                    logger.warning(f"No game data found for season {season}")
                     continue
 
                 # 检查数据库中存在的 GAME_ID
@@ -163,6 +180,7 @@ class NBALoader:
                 df_new = df_all[~df_all["GAME_ID"].isin(existing_game_ids)]
 
                 if df_new.empty:
+                    logger.info(f"All game data for season {season} already exists")
                     continue
 
                 # 保存数据
@@ -170,9 +188,21 @@ class NBALoader:
                     df_new, category="game", table_name="log", if_exists="append"
                 )
 
-            except Exception:
+                success_count += 1
+                new_games_count = len(df_new)
+                logger.info(f"Season {season} added {new_games_count} new game records")
+
+            except KeyboardInterrupt:
+                logger.info("User interrupted the download process")
+                break
+            except Exception as e:
                 error_count += 1
-                pbar.set_postfix(errors=error_count)
+                logger.error(f"Error downloading data for season {season}: {e}")
+                pbar.set_postfix(errors=error_count, refresh=False)
+
+        logger.info(
+            f"Season data download completed - Success: {success_count}, Failed: {error_count}"
+        )
 
     def fetch_player_game_logs(self, player_ids: List[int], seasons: List[str]):
         """获取特定球员的个人比赛日志
@@ -188,10 +218,13 @@ class NBALoader:
         """
         full_table_name = "player_game_log"
 
-        print(f"--- 正在获取 {len(player_ids)} 名球员在 {seasons} 赛季的赛程 ---")
+        logger.info(
+            f"--- Fetching game schedules for {len(player_ids)} players across seasons {seasons} ---"
+        )
 
         all_game_ids = []
         total_new_games = 0
+        success_count = 0
 
         error_count = 0
         players_pbar = tqdm(player_ids, desc="下载球员的比赛记录", unit="人")
@@ -212,6 +245,9 @@ class NBALoader:
                     df = player_game_log.get_data_frames()[0]
 
                     if df.empty:
+                        logger.debug(
+                            f"No game data for player {player_id} in season {season}"
+                        )
                         continue
 
                     # 检查数据库中已存在的 Game_ID
@@ -223,6 +259,9 @@ class NBALoader:
                     df_new = df[~df["Game_ID"].isin(existing_game_ids)]
 
                     if df_new.empty:
+                        logger.debug(
+                            f"Game data for player {player_id} in season {season} already exists"
+                        )
                         continue
 
                     new_games_count = len(df_new)
@@ -240,9 +279,20 @@ class NBALoader:
                     all_game_ids.extend(season_game_ids)
                     total_new_games += new_games_count
 
+                    success_count += 1
+                    seasons_bar.set_description(
+                        f"Player {player_id} (+{new_games_count} games)"
+                    )
+
+                except KeyboardInterrupt:
+                    logger.info("User interrupted the download process")
+                    return list(set(all_game_ids))
                 except Exception as e:
                     error_count += 1
-                    players_pbar.set_postfix(errors=error_count)
+                    logger.warning(
+                        f"Error downloading data for player {player_id} season {season}: {e}"
+                    )
+                    players_pbar.set_postfix(errors=error_count, refresh=False)
                     continue
 
         return list(set(all_game_ids))
@@ -251,7 +301,9 @@ class NBALoader:
         full_table_name = "game_pbp"
 
         if not game_ids:
-            print("--- [提示] 传入的比赛 ID 列表为空, 跳过 PBP 下载 ---")
+            logger.info(
+                "--- [Info] Empty game ID list provided, skipping PBP download ---"
+            )
             return
 
         # 检查 game_pbp 表中是否 已经存在这些比赛
@@ -261,15 +313,18 @@ class NBALoader:
         todo_game_ids = [gid for gid in game_ids if gid not in existing_pbp_ids]
 
         if not todo_game_ids:
-            print(
-                f"--- [提示] 传入的 {len(game_ids)} 场比赛的 PBP 均已存在于数据库中 ---"
+            logger.info(
+                f"--- [Info] All {len(game_ids)} games' PBP data already exists in database ---"
             )
             return
 
-        print(f"--- [开始下载] 准备获取 {len(todo_game_ids)} 场比赛的 PBP 细节数据 ---")
+        logger.info(
+            f"--- [Starting Download] Preparing to fetch PBP detail data for {len(todo_game_ids)} games ---"
+        )
 
         pbar = tqdm(todo_game_ids, desc="下载每场详细数据", unit="场")
         error_count = 0
+        success_count = 0
 
         for gid in pbar:
             self._pause()
@@ -285,13 +340,20 @@ class NBALoader:
                     df, category="game", table_name="pbp", if_exists="append"
                 )
 
-            except Exception:
+                success_count += 1
+
+            except KeyboardInterrupt:
+                logger.info("User interrupted the download process")
+                break
+            except Exception as e:
                 error_count += 1
-                pbar.set_postfix(errors=error_count)
+                logger.warning(f"Error downloading PBP data for game {gid}: {e}")
+                pbar.set_postfix(errors=error_count, refresh=False)
                 continue
 
-        if error_count:
-            tqdm.write(f"PBP 下载完成，失败 {error_count} 场")
+        logger.info(
+            f"PBP download completed - Success: {success_count}, Failed: {error_count}"
+        )
 
     def get_local_player_game_ids(self, player_id: int) -> List[str]:
         """直接从本地数据库读取该球员已有的比赛 ID, 无需联网."""
@@ -299,11 +361,19 @@ class NBALoader:
 
         try:
             with self._get_connection() as conn:
-                # 筛选特定球员的 ID
+                # Filter for specific player ID
                 query = f"SELECT DISTINCT game_id FROM {full_table_name} WHERE player_id = {player_id}"
                 df = pd.read_sql(query, conn)
                 return df["Game_ID"].tolist()
-        except Exception:
+        except sqlite3.Error as e:
+            logger.error(
+                f"Database error when querying game IDs for player {player_id}: {e}"
+            )
+            return []
+        except Exception as e:
+            logger.error(
+                f"Unknown error when querying game IDs for player {player_id}: {e}"
+            )
             return []
 
     def _save_to_sqlite(
@@ -322,7 +392,7 @@ class NBALoader:
             if_exists: 如果表存在怎么处理 ('append', 'replace')。
         """
         if df.empty:
-            print("警告: 收到空数据帧, 跳过保存. ")
+            logger.warning("Empty DataFrame received, skipping save")
             return
 
         # 自动构建带前缀的完整表名
@@ -335,15 +405,27 @@ class NBALoader:
         try:
             with self._get_connection() as conn:
                 df.to_sql(full_table_name, conn, if_exists=if_exists, index=False)
+                if if_exists == "append":
+                    logger.debug(
+                        f"Successfully appended {len(df)} records to table {full_table_name}"
+                    )
+                else:
+                    logger.debug(
+                        f"Successfully saved {len(df)} records to table {full_table_name}"
+                    )
+        except sqlite3.Error as e:
+            logger.error(f"Database error when writing to table {full_table_name}: {e}")
+            raise
         except Exception as e:
-            print(f"错误：写入表 {full_table_name} 失败。具体原因: {e}")
+            logger.error(f"Unknown error when writing to table {full_table_name}: {e}")
+            raise
 
     def fetch_all_players(self):
         """获取全联盟球员基础信息列表并存入 player_info 表"""
-        print("正在从 NBA API 获取全联盟球员名单...")
+        logger.info("Fetching all league player list from NBA API...")
 
         try:
-            # is_only_current_season=0 获取历史所有球员
+            # is_only_current_season=0 to get all historical players
             raw_data = commonallplayers.CommonAllPlayers(is_only_current_season=0)
             df = raw_data.get_data_frames()[0]
 
@@ -351,5 +433,10 @@ class NBALoader:
                 df, category="player", table_name="info", if_exists="replace"
             )
 
+            logger.info(
+                f"Successfully fetched and saved basic info for {len(df)} players"
+            )
+
         except Exception as e:
-            print(f"获取球员名单失败: {e}")
+            logger.error(f"Failed to fetch player list: {e}")
+            raise

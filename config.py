@@ -1,6 +1,15 @@
+import logging
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 全局日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)%s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 
 # 赛季列表
 seasons = [
