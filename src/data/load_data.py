@@ -9,6 +9,7 @@ from nba_api.stats.endpoints import (
     playbyplayv3,
     playergamelog,
 )
+from tqdm.auto import tqdm
 
 from config import DB_PATH
 
@@ -101,18 +102,16 @@ class NBALoader:
         new_ids = [pid for pid in player_ids if pid not in existing_ids]
 
         if not new_ids:
-            print(
-                f"--- [提示] 所选的 {len(player_ids)} 位球员数据均已存在，跳过下载 ---"
-            )
             return
 
         print(f"--- [增量下载] 准备获取 {len(new_ids)} 位新球员的数据 ---")
 
-        for pid in new_ids:
+        pbar = tqdm(new_ids, desc="下载球员数据", unit="人")
+        error_count = 0  # 错误计数器
+
+        for pid in pbar:
             try:
                 from nba_api.stats.endpoints import playercareerstats
-
-                print(f"正在获取球员 ID: {pid} 的数据...")
 
                 raw_data = playercareerstats.PlayerCareerStats(player_id=pid)
                 df = raw_data.get_data_frames()[0]
@@ -127,8 +126,12 @@ class NBALoader:
                 time.sleep(0.8)
 
             except Exception as e:
-                print(f"获取球员 {pid} 失败: {e}")
+                error_count += 1
+                pbar.set_postfix(errors=error_count)
                 continue
+
+        if error_count:
+            tqdm.write(f"球员数据下载完成, 失败 {error_count} 人")
 
     def fetch_games(self, seasons: List[str] = "2023-24"):
         """批量获取指定赛季的全联盟比赛记录并存入数据库。
@@ -139,7 +142,10 @@ class NBALoader:
         full_table_name = "game_log"
         print(f"--- [开始下载] 正在获取 {seasons} 赛季的全联盟比赛记录 ---")
 
-        for season in seasons:
+        error_count = 0
+        pbar = tqdm(seasons, desc="下载赛季数据", unit="赛季")
+
+        for season in pbar:
             # 访问休眠，防止封禁
             time.sleep(1.0)
 
@@ -150,7 +156,6 @@ class NBALoader:
                 df_all = game_finder.get_data_frames()[0]
 
                 if df_all.empty:
-                    print(f"未找到 {season} 赛季的任何比赛")
                     continue
 
                 # 检查数据库中存在的 GAME_ID
@@ -160,20 +165,16 @@ class NBALoader:
                 df_new = df_all[~df_all["GAME_ID"].isin(existing_game_ids)]
 
                 if df_new.empty:
-                    print(
-                        f"--- [提示] {season} 赛季的所有比赛记录已在数据库中，无需更新 ---"
-                    )
                     continue
-
-                print(f"检测到 {season} 赛季的 {len(df_new)} 条新比赛记录，正在写入...")
 
                 # 保存数据
                 self._save_to_sqlite(
                     df_new, category="game", table_name="log", if_exists="append"
                 )
 
-            except Exception as e:
-                print(f"获取比赛记录失败：{e}")
+            except Exception:
+                error_count += 1
+                pbar.set_postfix(errors=error_count)
 
     def fetch_player_game_logs(self, player_ids: List[int], seasons: List[str]):
         """获取特定球员的个人比赛日志
@@ -194,22 +195,25 @@ class NBALoader:
         all_game_ids = []
         total_new_games = 0
 
-        for player_id in player_ids:
+        error_count = 0
+        players_pbar = tqdm(player_ids, desc="下载球员的比赛记录", unit="人")
+
+        for player_id in players_pbar:
             self._pause()
             player_game_ids = []  # 当前球员的比赛ID
 
-            for season in seasons:
+            seasons_bar = tqdm(seasons, desc=f"{player_id}", unit="赛季", leave=False)
+
+            for season in seasons_bar:
                 self._pause()
                 try:
-                    print(f"正在获取球员 {player_id} 的 {season} 赛季数据...")
-
                     player_game_log = playergamelog.PlayerGameLog(
                         player_id=player_id, season=season
                     )
+
                     df = player_game_log.get_data_frames()[0]
 
                     if df.empty:
-                        print(f"未找到球员 {player_id} 在 {season} 赛季的比赛记录。")
                         continue
 
                     # 检查数据库中已存在的 Game_ID
@@ -221,15 +225,9 @@ class NBALoader:
                     df_new = df[~df["Game_ID"].isin(existing_game_ids)]
 
                     if df_new.empty:
-                        print(
-                            f"--- [提示] 球员 {player_id} 在 {season} 赛季的所有比赛记录已存在 ---"
-                        )
                         continue
 
                     new_games_count = len(df_new)
-                    print(
-                        f"检测到 {season} 赛季的 {new_games_count} 条新比赛记录，正在写入..."
-                    )
 
                     self._save_to_sqlite(
                         df_new,
@@ -245,30 +243,11 @@ class NBALoader:
                     total_new_games += new_games_count
 
                 except Exception as e:
-                    print(f"获取球员 {player_id} 在 {season} 赛季的赛程失败：{e}")
+                    error_count += 1
+                    players_pbar.set_postfix(errors=error_count)
                     continue
 
-            # 每个球员处理完后汇报
-            if player_game_ids:
-                print(
-                    f"--- 球员 {player_id} 处理完成，新增 {len(set(player_game_ids))} 场比赛记录 ---"
-                )
-            else:
-                print(f"--- 球员 {player_id} 在指定赛季内没有新的比赛记录 ---")
-
-        # 所有球员处理完后汇报总体情况
-        unique_game_ids = list(set(all_game_ids))
-        if unique_game_ids:
-            print(
-                f"--- 批量处理完成：共处理 {len(player_ids)} 名球员，"
-                f"新增 {len(unique_game_ids)} 场不重复比赛，总计 {total_new_games} 条记录 ---"
-            )
-        else:
-            print(
-                f"--- 批量处理完成：共处理 {len(player_ids)} 名球员，无新增比赛记录 ---"
-            )
-
-        return unique_game_ids
+        return list(set(all_game_ids))
 
     def fetch_pbp_data(self, game_ids: List[str]):
         full_table_name = "game_pbp"
@@ -291,32 +270,30 @@ class NBALoader:
 
         print(f"--- [开始下载] 准备获取 {len(todo_game_ids)} 场比赛的 PBP 细节数据 ---")
 
-        success_count = 0
-        for index, gid in enumerate(todo_game_ids):
+        pbar = tqdm(todo_game_ids, desc="下载每场详细数据", unit="场")
+        error_count = 0
+
+        for gid in pbar:
             self._pause()
 
             try:
-                print(f"[{index+1}/{len(todo_game_ids)}] 正在下载比赛 PBP: {gid}...")
-
                 p_p = playbyplayv3.PlayByPlayV3(game_id=gid)
                 df = p_p.get_data_frames()[0]
 
                 if df.empty:
-                    print(f"警告: 比赛 {gid} 返回了空 PBP 数据.")
                     continue
 
                 self._save_to_sqlite(
                     df, category="game", table_name="pbp", if_exists="append"
                 )
 
-                success_count += 1
-
-            except Exception as e:
-                print(f"获取比赛 {gid} 的 PBP 失败: {e}")
-                time.sleep(5)
+            except Exception:
+                error_count += 1
+                pbar.set_postfix(errors=error_count)
                 continue
 
-        print(f"--- [下载完成] 成功获取 {success_count} 场比赛的 PBP 数据 ---")
+        if error_count:
+            tqdm.write(f"PBP 下载完成，失败 {error_count} 场")
 
     def get_local_player_game_ids(self, player_id: int) -> List[str]:
         """直接从本地数据库读取该球员已有的比赛 ID, 无需联网."""
