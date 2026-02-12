@@ -1,5 +1,4 @@
 import sqlite3
-import time
 from typing import Literal, List
 
 import pandas as pd
@@ -59,7 +58,7 @@ class NBALoader:
             return set()
 
     def _pause(self):
-        time.sleep(self.sleep_time)
+        self._pause()
 
     def _get_connection(self):
         """创建一个数据库连接对象。"""
@@ -123,7 +122,7 @@ class NBALoader:
                 )
 
                 # 礼貌性延迟，防止请求过快
-                time.sleep(0.8)
+                self._pause()
 
             except Exception as e:
                 error_count += 1
@@ -147,7 +146,7 @@ class NBALoader:
 
         for season in pbar:
             # 访问休眠，防止封禁
-            time.sleep(1.0)
+            self._pause()
 
             try:
                 game_finder = leaguegamefinder.LeagueGameFinder(
@@ -337,7 +336,6 @@ class NBALoader:
         try:
             with self._get_connection() as conn:
                 df.to_sql(full_table_name, conn, if_exists=if_exists, index=False)
-            print(f"--- 成功更新表 [{full_table_name}]，影响行数：{len(df)} ---")
         except Exception as e:
             print(f"错误：写入表 {full_table_name} 失败。具体原因: {e}")
 
