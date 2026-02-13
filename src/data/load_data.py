@@ -26,13 +26,14 @@ class NBALoader:
         """初始化 NBALoader, 设置数据库路径."""
         self.db_path = DB_PATH
 
-        self.sleep_time = 1.5
+        self.sleep_time = 1.0
 
         # 预定义核心表的关键约束
         self.table_schemas = {
             "player_info": "PERSON_ID INTEGER PRIMARY KEY",
             "player_stats": "PLAYER_ID INTEGER, SEASON_ID TEXT, TEAM_ID INTEGER",
             "game_log": "GAME_ID TEXT PRIMARY KEY",
+            "game_pbp": "GAME_ID TEXT, EVENTNUM INTEGER, PRIMARY KEY (GAME_ID, EVENTNUM)",
         }
 
         logger.info("--- NBALoader initialized successfully ---")
@@ -50,12 +51,12 @@ class NBALoader:
         """
         try:
             with self._get_connection() as conn:
-                # 使用 SQL 的 DISTINCT 提高查询效率
                 query = f"SELECT DISTINCT {id_column} FROM {full_table_name}"
                 df = pd.read_sql(query, conn)
                 return set(df[id_column].tolist())
         except sqlite3.Error as e:
-            logger.warning(f"Database error when querying table {full_table_name}: {e}")
+            logger.error(f"Database error when querying table {full_table_name}: {e}")
+            return set()
 
     def _pause(self):
         time.sleep(self.sleep_time)
@@ -307,40 +308,38 @@ class NBALoader:
             return
 
         # 检查 game_pbp 表中是否 已经存在这些比赛
-        existing_pbp_ids = self._get_existing_ids(full_table_name, "GAME_ID")
+        existing_pbp_ids = self._get_existing_ids(full_table_name, "gameId")
 
         # 过滤掉库里已有的比赛 ID
         todo_game_ids = [gid for gid in game_ids if gid not in existing_pbp_ids]
 
-        if not todo_game_ids:
+        if not game_ids:
             logger.info(
                 f"--- [Info] All {len(game_ids)} games' PBP data already exists in database ---"
             )
             return
 
         logger.info(
-            f"--- [Starting Download] Preparing to fetch PBP detail data for {len(todo_game_ids)} games ---"
+            f"--- [Starting Download] Preparing to fetch PBP detail data for {len(game_ids)} games ---"
         )
 
+        all_new_data = []
         pbar = tqdm(todo_game_ids, desc="下载每场详细数据", unit="场")
         error_count = 0
-        success_count = 0
 
         for gid in pbar:
+            if error_count >= 30:
+                logger.warning(f"Error hits 30, stop downloading")
+                break
+
             self._pause()
 
             try:
                 p_p = playbyplayv3.PlayByPlayV3(game_id=gid)
                 df = p_p.get_data_frames()[0]
 
-                if df.empty:
-                    continue
-
-                self._save_to_sqlite(
-                    df, category="game", table_name="pbp", if_exists="append"
-                )
-
-                success_count += 1
+                if not df.empty:
+                    all_new_data.append(df)
 
             except KeyboardInterrupt:
                 logger.info("User interrupted the download process")
@@ -351,9 +350,21 @@ class NBALoader:
                 pbar.set_postfix(errors=error_count, refresh=False)
                 continue
 
-        logger.info(
-            f"PBP download completed - Success: {success_count}, Failed: {error_count}"
-        )
+        if all_new_data:
+            final_df = pd.concat(all_new_data, ignore_index=True)
+
+            self._save_to_sqlite(
+                final_df,
+                category="game",
+                table_name="pbp",
+                if_exists="append",
+            )
+
+            logger.info(
+                f"PBP download completed - Added {len(final_df)} rows, Errors: {error_count}"
+            )
+        else:
+            logger.info("No new PBP data downloaded.")
 
     def get_local_player_game_ids(self, player_id: int) -> List[str]:
         """直接从本地数据库读取该球员已有的比赛 ID, 无需联网."""
@@ -362,7 +373,7 @@ class NBALoader:
         try:
             with self._get_connection() as conn:
                 # Filter for specific player ID
-                query = f"SELECT DISTINCT game_id FROM {full_table_name} WHERE player_id = {player_id}"
+                query = f"SELECT DISTINCT Game_ID FROM {full_table_name} WHERE player_id = {player_id}"
                 df = pd.read_sql(query, conn)
                 return df["Game_ID"].tolist()
         except sqlite3.Error as e:
