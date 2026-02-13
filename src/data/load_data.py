@@ -346,7 +346,7 @@ class NBALoader:
                 break
             except Exception as e:
                 error_count += 1
-                logger.warning(f"Error downloading PBP data for game {gid}: {e}")
+                logger.error(f"Error downloading PBP data for game {gid}: {e}")
                 pbar.set_postfix(errors=error_count, refresh=False)
                 continue
 
