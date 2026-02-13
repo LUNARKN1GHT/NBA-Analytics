@@ -12,7 +12,7 @@ from nba_api.stats.endpoints import (
 )
 from tqdm.auto import tqdm
 
-from config import DB_PATH, logger
+from config import DB_PATH, logger, SLEEP_TIME, MAX_ERROR_TIMES
 
 
 class NBALoader:
@@ -26,7 +26,7 @@ class NBALoader:
         """初始化 NBALoader, 设置数据库路径."""
         self.db_path = DB_PATH
 
-        self.sleep_time = 1.0
+        self.sleep_time = SLEEP_TIME
 
         # 预定义核心表的关键约束
         self.table_schemas = {
@@ -328,7 +328,7 @@ class NBALoader:
         error_count = 0
 
         for gid in pbar:
-            if error_count >= 30:
+            if error_count >= MAX_ERROR_TIMES:
                 logger.warning(f"Error hits 30, stop downloading")
                 break
 

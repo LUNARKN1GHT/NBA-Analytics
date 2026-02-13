@@ -12,6 +12,9 @@ DB_PATH = DATA_RAW / "nba.sqlite"
 
 # --- 任务参数配置 ---
 SUB_TASKS = ["duration", "home_advantage", "player_stats", "clutch"]
+PLAYERS = [2544, 201939, 201142, 893]
+SLEEP_TIME = 1.0
+MAX_ERROR_TIMES = 30
 
 # 生成赛季列表
 START_YEAR = 1985
