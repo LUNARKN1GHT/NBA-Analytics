@@ -1,118 +1,70 @@
 import logging
-import os
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# --- 核心路径管理 ---
+BASE_DIR = Path(__file__).resolve().parent
+DATA_RAW = BASE_DIR / "data" / "raw"
+DATA_PROCESSED = BASE_DIR / "data" / "processed"
+REPORTS_DIR = BASE_DIR / "reports"
+LOGS_DIR = BASE_DIR / "logs"
+
+DB_PATH = DATA_RAW / "nba.sqlite"
+
+# --- 任务参数配置 ---
+SUB_TASKS = ["duration", "home_advantage", "player_stats", "clutch"]
+
+# 生成赛季列表
+START_YEAR = 1985
+END_YEAR = 2024
+SEASONS = [f"{y}-{str(y+1)[-2:]}" for y in range(START_YEAR, END_YEAR + 1)]
 
 
-# 全局日志配置
-def setup_logger():
-    """Setup global logger configuration"""
+# --- 初始化工具 ---
+def init_project_structure():
+    """初始化必要的文件夹结构"""
+    dirs = [DATA_RAW, DATA_PROCESSED, REPORTS_DIR, LOGS_DIR]
+    for task in SUB_TASKS:
+        dirs.append(DATA_PROCESSED / task)
+        dirs.append(REPORTS_DIR / task)
+
+    for d in dirs:
+        d.mkdir(parents=True, exist_ok=True)
+
+
+def setup_logger(name="nba_analytics"):
+    """全局日志配置"""
     # 创建logs目录
-    logs_dir = os.path.join(BASE_DIR, "logs")
-    os.makedirs(logs_dir, exist_ok=True)
+    LOGS_DIR.mkdir(exist_ok=True)
+
+    task_logger = logging.getLogger(name)
+    task_logger.setLevel(logging.INFO)
+    task_logger.handlers.clear()
 
     # 配置日志格式
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
-    # 创建logger
-    logger = logging.getLogger("nba_analytics")
-    logger.setLevel(logging.INFO)
+    # 处理器配置: (级别, 文件名, 是否权限错误)
+    handlers = [
+        (logging.WARNING, None, False),  # 控制台
+        (logging.INFO, LOGS_DIR / f"{name}.log", False),  # 全量文件
+        (logging.ERROR, LOGS_DIR / f"{name}_error.log", True),  # 仅错误文件
+    ]
 
-    # 清除现有的handlers（避免重复添加）
-    logger.handlers.clear()
+    for level, path, error_only in handlers:
+        handler = (
+            logging.FileHandler(path, encoding="utf-8")
+            if path
+            else logging.StreamHandler()
+        )
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        task_logger.addHandler(handler)
 
-    # 控制台处理器
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.ERROR)
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-    # 文件处理器
-    log_file = os.path.join(logs_dir, "nba_analytics.log")
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-
-    # 错误日志单独文件
-    error_log_file = os.path.join(logs_dir, "nba_analytics_error.log")
-    error_handler = logging.FileHandler(error_log_file, encoding="utf-8")
-    error_handler.setLevel(logging.ERROR)
-    error_handler.setFormatter(formatter)
-    logger.addHandler(error_handler)
-
-    return logger
+    return task_logger
 
 
-# 创建全局logger实例
-logger = setup_logger()
-
-
-# 赛季列表
-seasons = [
-    "1985-86",
-    "1986-87",
-    "1987-88",
-    "1988-89",
-    "1989-90",
-    "1990-91",
-    "1991-92",
-    "1992-93",
-    "1993-94",
-    "1994-95",
-    "1995-96",
-    "1996-97",
-    "1997-98",
-    "1998-99",
-    "1999-00",
-    "2000-01",
-    "2001-02",
-    "2002-03",
-    "2003-04",
-    "2004-05",
-    "2005-06",
-    "2006-07",
-    "2007-08",
-    "2008-09",
-    "2009-10",
-    "2010-11",
-    "2011-12",
-    "2012-13",
-    "2013-14",
-    "2014-15",
-    "2015-16",
-    "2016-17",
-    "2017-18",
-    "2018-19",
-    "2019-20",
-    "2020-21",
-    "2021-22",
-    "2022-23",
-    "2023-24",
-    "2024-25",
-]
-
-# 基础路径
-DATA_RAW = os.path.join(BASE_DIR, "data", "raw")
-DATA_PROCESSED = os.path.join(BASE_DIR, "data", "processed")
-REPORTS_DIR = os.path.join(BASE_DIR, "reports")
-
-# 定义子任务文件夹 (按需扩展)
-# 例如：duration(时长), clutch(关键时刻), shooting(投篮)
-SUB_TASKS = ["duration", "home_advantage", "player_stats"]
-
-# 数据库路径
-DB_PATH = os.path.join(DATA_RAW, "nba.sqlite")
-
-
-def init_project_structure():
-    """初始化文件夹结构"""
-    for task in SUB_TASKS:
-        os.makedirs(os.path.join(DATA_PROCESSED, task), exist_ok=True)
-        os.makedirs(os.path.join(REPORTS_DIR, task), exist_ok=True)
-
-
-# 立即初始化
+# --- 自动执行 ---
 init_project_structure()
+logger = setup_logger()
