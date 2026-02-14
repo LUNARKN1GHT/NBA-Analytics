@@ -320,7 +320,7 @@ class NBALoader:
             return
 
         logger.info(
-            f"--- [Starting Download] Preparing to fetch PBP detail data for {len(game_ids)} games ---"
+            f"--- [Starting Download] Preparing to fetch PBP detail data for {len(todo_game_ids)} games ---"
         )
 
         all_new_data = []
@@ -329,7 +329,7 @@ class NBALoader:
 
         for gid in pbar:
             if error_count >= MAX_ERROR_TIMES:
-                logger.warning(f"Error hits 30, stop downloading")
+                logger.warning(f"Error hits {MAX_ERROR_TIMES}, stop downloading")
                 break
 
             self._pause()
