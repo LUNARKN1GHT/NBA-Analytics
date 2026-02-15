@@ -1,4 +1,5 @@
 from src.utils.db_utils import DatabaseManager
+from .clutch_analyzer import ClutchAnalyzer
 from .game_analyzer import GameAnalyzer
 from .player_analyzer import PlayerAnalyzer
 from .statistics_analyzer import StatisticsAnalyzer
@@ -17,6 +18,7 @@ class NBAAnalyzer:
         self.team_analyzer = TeamAnalyzer(self.db_manager)
         self.game_analyzer = GameAnalyzer(self.db_manager)
         self.stats_analyzer = StatisticsAnalyzer(self.db_manager)
+        self.clutch_analyzer = ClutchAnalyzer(self.db_manager)
 
     def connect(self):
         """开启数据库链接"""
@@ -36,3 +38,8 @@ class NBAAnalyzer:
 
     def analyze_three_attempt_trend(self):
         return self.game_analyzer.three_attempt_trend()
+
+    def analyze_player_clutch(self, player_id: int = None, player_name: str = None):
+        return self.clutch_analyzer.analyze_player(
+            player_id=player_id, player_name=player_name
+        )
