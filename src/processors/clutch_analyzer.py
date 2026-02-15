@@ -20,9 +20,11 @@ def parse_v3_clock(clock_str):
 
 
 class ClutchAnalyzer(BaseAnalyzer):
-    def analyze_player(
-        self, player_id: int = None, player_name: str = None
-    ) -> Dict | None:
+    def __init__(self, db_manager):
+        super().__init__(db_manager)
+        self._df = pd.DataFrame()  # 关键时刻总表格
+
+    def analyze_player(self, player_id: int = None, player_name: str = None) -> Dict:
         """核心出口：输入球员信息，直接返回该球员的关键时刻分析报告
 
         Args:
@@ -32,41 +34,42 @@ class ClutchAnalyzer(BaseAnalyzer):
         Returns:
             球员关键时刻数据报告
         """
-        clutch_df = self.get_clutch_data(player_id=player_id, player_name=player_name)
+        # 每次开始前重置为空表格, 防止上次搜索的结果残留
+        self._df = pd.DataFrame()
 
-        if clutch_df is None or clutch_df.empty:
+        # 获取数据
+        self._get_clutch_data(player_id=player_id, player_name=player_name)
+
+        # 如果 _get_clutch_data 之后依然是空的，直接返回
+        if self._df is None or self._df.empty:
             name = player_name if player_name else player_id
-            print(f"--- [Warning] No clutch data found for {name} ---")
-            return None
-
-        metrics = self.calculate_metrics(clutch_df, player_id)
+            print(f"--- [Warning] No data found for {name} ---")
+            return {}
+        metrics = self.calculate_metrics()
 
         metrics["Player"] = (
-            player_name if player_name else clutch_df["playerName"].iloc[0]
+            player_name if player_name else self._df["playerName"].iloc[0]
         )
-        metrics["Game_Count"] = clutch_df["gameId"].nunique()
+        metrics["Game_Count"] = self._df["gameId"].nunique()
 
         return metrics
 
-    def calculate_metrics(self, clutch_df: pd.DataFrame) -> Dict | None:
+    def calculate_metrics(self) -> Dict:
         """计算关键时刻的指标
-
-        Args:
-            clutch_df: 关键时刻的表格
 
         Returns:
             关键时刻的相关指标
         """
-        if clutch_df.empty:
+        if self._df.empty:
             return {}
 
         # 投篮统计
-        fga_df = clutch_df[clutch_df["isFieldGoal"] == 1]
+        fga_df = self._df[self._df["isFieldGoal"] == 1]
         # 三分统计
         three_pa_df = fga_df[fga_df["shotValue"] == 3]
         # 罚球统计
-        fta_df = clutch_df[
-            clutch_df["actionType"].str.contains("Free Throw", case=False, na=False)
+        fta_df = self._df[
+            self._df["actionType"].str.contains("Free Throw", case=False, na=False)
         ]
 
         # 计算命中数
@@ -102,17 +105,12 @@ class ClutchAnalyzer(BaseAnalyzer):
             "FTA": fta,
         }
 
-    def get_clutch_data(
-        self, player_id: int = None, player_name: str = None
-    ) -> pd.DataFrame | None:
+    def _get_clutch_data(self, player_id: int = None, player_name: str = None):
         """筛选出目标球员关键时刻的数据
 
         Args:
             player_id: 球员 ID
             player_name: 球员名字
-
-        Returns:
-            关键时刻的数据表格
         """
         query = """
             -- 提取球员在关键时刻的所有动作片段
@@ -138,42 +136,40 @@ class ClutchAnalyzer(BaseAnalyzer):
             ORDER BY gameid, period, actionnumber;
         """
 
-        df = self.db.query(query)
+        self._df = self.db.query(query)
+
+        if self._df.empty:
+            self._df = pd.DataFrame()
+            return
 
         # 清洗并筛选关键时刻数据
-        df = self.process_clutch_df(df)
+        self._process_clutch_df()
 
         # 过滤出目标球员的动作
         if player_id:
-            return df[df["personId"] == player_id]
-        if player_name:
-            return df[df["playerName"] == player_name]
+            self._df = self._df[self._df["personId"] == player_id]
+        elif player_name:
+            self._df = self._df[self._df["playerName"] == player_name]
         else:
             print("Please provide a player ID or name!")
-            return None
+            self._df = None
 
     def compare_players(self, player_ids):
         """横向对比多名球员"""
         pass
 
-    def process_clutch_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        """清洗并筛选关键时刻数据
+    def _process_clutch_df(self):
+        """清洗并筛选关键时刻数据"""
+        self._df["seconds_remaining"] = self._df["clock"].apply(parse_v3_clock)
 
-        Args:
-            df: 需要处理的表格
+        self._df["home_pts"] = pd.to_numeric(self._df["scoreHome"], errors="coerce")
+        self._df["away_pts"] = pd.to_numeric(self._df["scoreAway"], errors="coerce")
 
-        Returns:
-            筛选后的表格数据
-        """
-        df["seconds_remaining"] = df["clock"].apply(parse_v3_clock)
-
-        df["home_pts"] = pd.to_numeric(df["scoreHome"], errors="coerce")
-        df["away_pts"] = pd.to_numeric(df["scoreAway"], errors="coerce")
-        df["margin"] = (df["home_pts"] - df["away_pts"]).abs()
+        self._df["margin"] = (self._df["home_pts"] - self._df["away_pts"]).abs()
 
         # 关键时刻过滤条件
-        clutch_mask = (
-            (df["period"] >= 4) & (df["seconds_remaining"] <= 300) & (df["margin"] <= 5)
-        )
-
-        return df[clutch_mask].copy()
+        self._df = self._df[
+            (self._df["period"] >= 4)
+            & (self._df["seconds_remaining"] <= 300)
+            & (self._df["margin"] <= 5)
+        ]
