@@ -12,7 +12,14 @@ DB_PATH = DATA_RAW / "nba.sqlite"
 
 # --- 任务参数配置 ---
 SUB_TASKS = ["duration", "home_advantage", "player_stats", "clutch"]
-PLAYERS = [2544, 201939, 201142, 893]
+PLAYERS = [
+    2544,  # LeBron James
+    201939,  # Stephen Curry
+    201142,  # Kobe Bryant
+    893,  # Michael Jordan
+    1945,  # Tim Duncan
+    2458,  # Dwyane Wade
+]
 SLEEP_TIME = 1.0
 MAX_ERROR_TIMES = 30
 
