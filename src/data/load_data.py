@@ -9,6 +9,7 @@ from nba_api.stats.endpoints import (
     playbyplayv3,
     playergamelog,
     playercareerstats,
+    drafthistory,
 )
 from tqdm.auto import tqdm
 
@@ -365,6 +366,15 @@ class NBALoader:
             )
         else:
             logger.info("No new PBP data downloaded.")
+
+    def fetch_draft_history(self):
+        logger.info(f"--- Fetching draft history ---")
+
+        draft_history = drafthistory.DraftHistory(league_id="00")
+
+        df = draft_history.get_data_frames()[0]
+
+        self._save_to_sqlite(df=df, category="draft", table_name="history")
 
     def get_local_player_game_ids(self, player_id: int) -> List[str]:
         """直接从本地数据库读取该球员已有的比赛 ID, 无需联网."""
