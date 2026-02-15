@@ -15,7 +15,7 @@ SUB_TASKS = ["duration", "home_advantage", "player_stats", "clutch"]
 PLAYERS = [
     2544,  # LeBron James
     201939,  # Stephen Curry
-    201142,  # Kobe Bryant
+    201142,  # Kevin Durant
     893,  # Michael Jordan
     1945,  # Tim Duncan
     2458,  # Dwyane Wade
