@@ -1,6 +1,7 @@
 """关键时刻分析"""
 
 import re
+from typing import Dict
 
 import pandas as pd
 
@@ -19,8 +20,18 @@ def parse_v3_clock(clock_str):
 
 
 class ClutchAnalyzer(BaseAnalyzer):
-    def analyze_player(self, player_id: int = None, player_name: str = None):
-        """核心出口：输入球员信息，直接返回该球员的关键时刻分析报告"""
+    def analyze_player(
+        self, player_id: int = None, player_name: str = None
+    ) -> Dict | None:
+        """核心出口：输入球员信息，直接返回该球员的关键时刻分析报告
+
+        Args:
+            player_id: 球员 ID
+            player_name: 球员名称
+
+        Returns:
+            球员关键时刻数据报告
+        """
         clutch_df = self.get_clutch_data(player_id=player_id, player_name=player_name)
 
         if clutch_df is None or clutch_df.empty:
@@ -37,10 +48,17 @@ class ClutchAnalyzer(BaseAnalyzer):
 
         return metrics
 
-    def calculate_metrics(self, clutch_df: pd.DataFrame, player_id):
-        """计算关键时刻的指标"""
+    def calculate_metrics(self, clutch_df: pd.DataFrame) -> Dict | None:
+        """计算关键时刻的指标
+
+        Args:
+            clutch_df: 关键时刻的表格
+
+        Returns:
+            关键时刻的相关指标
+        """
         if clutch_df.empty:
-            return "No clutch data found for this player"
+            return {}
 
         # 投篮统计
         fga_df = clutch_df[clutch_df["isFieldGoal"] == 1]
@@ -84,7 +102,18 @@ class ClutchAnalyzer(BaseAnalyzer):
             "FTA": fta,
         }
 
-    def get_clutch_data(self, player_id: int = None, player_name: str = None):
+    def get_clutch_data(
+        self, player_id: int = None, player_name: str = None
+    ) -> pd.DataFrame | None:
+        """筛选出目标球员关键时刻的数据
+
+        Args:
+            player_id: 球员 ID
+            player_name: 球员名字
+
+        Returns:
+            关键时刻的数据表格
+        """
         query = """
             -- 提取球员在关键时刻的所有动作片段
             SELECT
@@ -127,8 +156,15 @@ class ClutchAnalyzer(BaseAnalyzer):
         """横向对比多名球员"""
         pass
 
-    def process_clutch_df(self, df: pd.DataFrame):
-        """清洗并筛选关键时刻数据"""
+    def process_clutch_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """清洗并筛选关键时刻数据
+
+        Args:
+            df: 需要处理的表格
+
+        Returns:
+            筛选后的表格数据
+        """
         df["seconds_remaining"] = df["clock"].apply(parse_v3_clock)
 
         df["home_pts"] = pd.to_numeric(df["scoreHome"], errors="coerce")
