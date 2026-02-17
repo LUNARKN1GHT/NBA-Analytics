@@ -63,18 +63,31 @@ class ClutchAnalyzer(BaseAnalyzer):
         if self._df.empty:
             return {}
 
+        metrics = self._calculate_clutch_shot_metrics()
+
+        metrics["shoot_distance"] = self._calculate_clutch_shot_distance_metrics()
+
+        return metrics
+
+    def _calculate_clutch_shot_metrics(self) -> Dict:
+        """计算关键时刻的投篮指标"""
+
+        self._df["isFieldGoal"] = pd.to_numeric(
+            self._df["isFieldGoal"], errors="coerce"
+        )
+
         # 投篮统计
         fga_df = self._df[self._df["isFieldGoal"] == 1]
+        fgm = len(fga_df[fga_df["shotResult"] == "Made"])
+
         # 三分统计
         three_pa_df = fga_df[fga_df["shotValue"] == 3]
+        three_pm = len(three_pa_df[three_pa_df["shotResult"] == "Made"])
+
         # 罚球统计
         fta_df = self._df[
             self._df["actionType"].str.contains("Free Throw", case=False, na=False)
         ]
-
-        # 计算命中数
-        fgm = len(fga_df[fga_df["shotResult"].str.contains("Made")])
-        three_pm = len(three_pa_df[three_pa_df["shotResult"].str.contains("Made")])
         ftm = len(
             fta_df[~fta_df["description"].str.contains("MISS", case=False, na=False)]
         )
@@ -84,11 +97,6 @@ class ClutchAnalyzer(BaseAnalyzer):
         three_pa = len(three_pa_df)
         fta = len(fta_df)
 
-        # 比例计算
-        fg_pct = (fgm / fga) if fga > 0 else 0
-        three_pct = (three_pm / three_pa) if three_pa > 0 else 0
-        ft_pct = (ftm / fta) if fta > 0 else 0
-
         # 总得分统计
         total_pts = (fgm - three_pm) * 2 + three_pm * 3 + ftm
 
@@ -97,9 +105,9 @@ class ClutchAnalyzer(BaseAnalyzer):
 
         return {
             "Points": total_pts,
-            "FG%": f"{fg_pct:.1%}",
-            "3P%": f"{three_pct:.1%}",
-            "FT%": f"{ft_pct:.1%}",
+            "FG%": f"{(fgm/fga):.1%}",
+            "3P%": f"{(three_pm/three_pa):.1%}",
+            "FT%": f"{(ftm/fta):.1%}",
             "TS%": f"{ts_pct:.1%}",
             "FGA": fga,
             "FTA": fta,
