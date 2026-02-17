@@ -103,12 +103,16 @@ class ClutchAnalyzer(BaseAnalyzer):
         # 真实命中率
         ts_pct = total_pts / (2 * (fga + 0.44 * fta)) if (fga + fta) > 0 else 0
 
+        # 三分出手占比
+        three_rate = (three_pa / fga) if fga > 0 else 0
+
         return {
             "Points": total_pts,
             "FG%": f"{(fgm/fga):.1%}",
             "3P%": f"{(three_pm/three_pa):.1%}",
             "FT%": f"{(ftm/fta):.1%}",
             "TS%": f"{ts_pct:.1%}",
+            "3P_Freq": f"{three_rate:.1%}",
             "FGA": fga,
             "FTA": fta,
         }
