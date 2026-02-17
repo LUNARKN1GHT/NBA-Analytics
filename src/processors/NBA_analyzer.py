@@ -1,6 +1,7 @@
 from src.utils.db_utils import DatabaseManager
 from .clutch_analyzer import ClutchAnalyzer
 from .game_analyzer import GameAnalyzer
+from .garbage_time_analyzer import GarbageTimeAnalyzer
 from .player_analyzer import PlayerAnalyzer
 from .statistics_analyzer import StatisticsAnalyzer
 from .team_analyzer import TeamAnalyzer
@@ -19,6 +20,7 @@ class NBAAnalyzer:
         self.game_analyzer = GameAnalyzer(self.db_manager)
         self.stats_analyzer = StatisticsAnalyzer(self.db_manager)
         self.clutch_analyzer = ClutchAnalyzer(self.db_manager)
+        self.garbage_time_analyzer = GarbageTimeAnalyzer(self.db_manager)
 
     def connect(self):
         """开启数据库链接"""
@@ -41,5 +43,12 @@ class NBAAnalyzer:
 
     def analyze_player_clutch(self, player_id: int = None, player_name: str = None):
         return self.clutch_analyzer.analyze_player(
+            player_id=player_id, player_name=player_name
+        )
+
+    def analyze_player_garbage_time(
+        self, player_id: int = None, player_name: str = None
+    ):
+        return self.garbage_time_analyzer.analyze_player(
             player_id=player_id, player_name=player_name
         )

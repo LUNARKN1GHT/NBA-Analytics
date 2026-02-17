@@ -19,8 +19,12 @@ def main():
     # viz = NBAVisualizer()
     # viz.plot("three_attempt_trend", three_attempt_df, title="三分出手比例")
 
-    print("📊 正在执行：生涯关键时刻统计...")
-    clutch_performance = nba.analyze_player_clutch(player_id=201939)
+    # print("📊 正在执行：生涯关键时刻统计...")
+    # clutch_performance = nba.analyze_player_clutch(player_id=201939)
+    # print(clutch_performance)
+
+    print("📊 正在执行：垃圾时间统计...")
+    clutch_performance = nba.analyze_player_garbage_time(player_id=201939)
     print(clutch_performance)
 
     nba.disconnect()
