@@ -65,7 +65,7 @@ class ClutchAnalyzer(BaseAnalyzer):
 
         metrics = self._calculate_clutch_shot_metrics()
 
-        metrics["shoot_distance"] = self._calculate_clutch_shot_distance_metrics()
+        metrics.update(self._calculate_clutch_shot_distance_metrics())
 
         return metrics
 
@@ -115,6 +115,23 @@ class ClutchAnalyzer(BaseAnalyzer):
             "3P_Freq": f"{three_rate:.1%}",
             "FGA": fga,
             "FTA": fta,
+        }
+
+    def _calculate_clutch_shot_distance_metrics(self) -> Dict:
+        """计算关键时刻的出手距离"""
+        shot_df = self._df[self._df["isFieldGoal"] == 1].copy()
+        if shot_df.empty:
+            return {"avg_dist": 0, "made_dist": 0}
+
+        # 计算总平均距离
+        avg_dist = shot_df["shotDistance"].mean()
+
+        # 名中球的平均距离
+        made_dist = shot_df[shot_df["shotResult"] == "Made"]["shotDistance"].mean()
+
+        return {
+            "avg_dist": round(float(avg_dist), 2),
+            "made_dist": round(float(made_dist), 2),
         }
 
     def _get_clutch_data(self, player_id: int = None, player_name: str = None):
