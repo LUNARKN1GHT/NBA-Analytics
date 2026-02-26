@@ -44,6 +44,13 @@ class ScoreMarginAnalyzer(BaseAnalyzer):
 
         self._save_stat(player_name=final_name, player_id=final_id)
 
+        self._stats.attrs["player_name"] = (
+            player_name if player_name else self._pbp_df["playerName"].iloc[0]
+        )
+        self._stats.attrs["player_id"] = (
+            player_id if player_id else self._pbp_df["personId"].iloc[0]
+        )
+
         return self._stats
 
     def _save_stat(self, player_id: int = None, player_name: str = None):

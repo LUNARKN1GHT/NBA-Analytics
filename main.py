@@ -107,7 +107,14 @@ def main():
                 player_info = get_player_input()
                 print("📊 正在执行：球员得分分布分析...")
                 score_margin_distribution = nba.analyze_score_margin(**player_info)
-                print(score_margin_distribution)
+
+                if score_margin_distribution is not None:
+                    viz.plot(
+                        task_type="score_margin_dist",
+                        df=score_margin_distribution,
+                        player_name=player_info.get("player_name"),
+                        player_id=player_info.get("player_id"),
+                    )
 
             elif choice == "7":
                 batch_player_analysis(nba, viz)

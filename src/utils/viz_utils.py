@@ -23,12 +23,14 @@ class NBAVisualizer:
             "clutch_efficiency": "player_clutch",
             "decision_matrix": "player_clutch",
             "team_efficiency": "team_analysis",
+            "score_margin_dist": "player_analysis",
         }
 
         self._plotters: Dict[str, Callable[[pd.DataFrame], None]] = {
             "duration": self._plot_duration,
             "home_advantage_trend": self._plot_home_advantage_trend,
             "three_attempt_trend": self._plot_three_attempt_trend,
+            "score_margin_dist": self._plot_score_margin_dist,
         }
 
     def _save_logic(self, task_type: str, fig_name: str) -> None:
@@ -47,12 +49,21 @@ class NBAVisualizer:
             print(f"⚠️ {task_type} 数据为空，跳过绘图。")
             return
 
+        p_name = kwargs.get("player_name") or df.attrs.get("player_name", "Unknown")
+        p_id = kwargs.get("player_id") or df.attrs.get("player_id", "")
+
+        # 构建一个唯一的文件名标识
+        fig_identity = f"{p_name}_{p_id}".replace(" ", "_").strip("_")
+        fig_name = f"{fig_identity}_{task_type}"
+
         plotter = self._plotters.get(task_type)
+        plotter(df, player_name=p_name, player_id=p_id)
+
         if plotter is None:
             raise ValueError(f"未支持的绘图任务：{task_type}")
 
         plotter(df)
-        self._save_logic(task_type, task_type)
+        self._save_logic(task_type, fig_name)
 
     # --- 私有绘图函数 ---
 
@@ -177,4 +188,51 @@ class NBAVisualizer:
         plt.ylabel("出手占比", fontsize=12)
         plt.xticks(rotation=45)
         plt.legend()
+        plt.tight_layout()
+
+    def _plot_score_margin_dist(self, df, **kwargs):
+        """绘制球员得分随分差分布的曲线图"""
+        player_name = kwargs.get("player_name", "Unknown Player")
+
+        plt.figure(figsize=(14, 7))
+
+        # 使用 核密度估计 或 平滑线 来展示趋势，原始点作为辅助
+        # 1. 绘制得分柱状图
+        sns.barplot(
+            data=df,
+            x="margin",
+            y="total_points",
+            color="skyblue",
+            alpha=0.4,
+            label="单分差的得分",
+        )
+
+        # 2. 绘制移动平均线或平滑趋势线
+        # 由于分差可能不连续，我们先确保排序
+        df = df.sort_values("margin")
+        df["points_smooth"] = df["total_points"].rolling(window=3, center=True).mean()
+
+        sns.lineplot(
+            data=df,
+            x=df.index,
+            y="points_smooth",
+            color="#C9082A",
+            linewidth=2.5,
+            label="得分趋势（MA3）",
+        )
+
+        # 3. 辅助线：分差为 0 的轴
+        if 0 in df["margin"].values:
+            zero_idx = df.index.get_loc(df[df["margin"] == 0].index[0])
+            plt.axvline(zero_idx, color="black", linestyle="--", alpha=0.5)
+
+        plt.title(f"得分分布随比赛分差波动图: {player_name}", fontsize=18)
+        plt.xlabel("分差 (Margin)", fontsize=12)
+        plt.ylabel("累积得分", fontsize=12)
+
+        # 优化 X 轴标签，每隔 5 个显示一个
+        locs, labels = plt.xticks()
+        plt.xticks(locs[::5], df["margin"].iloc[::5], rotation=0)
+
+        plt.legend(loc="upper left")
         plt.tight_layout()
