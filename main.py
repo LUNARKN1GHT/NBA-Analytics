@@ -12,6 +12,7 @@ def show_menu():
     print("3. 三分出手趋势分析")
     print("4. 球员关键时刻分析")
     print("5. 球员垃圾时间分析")
+    print("6. 球员得分分布分析")
     print("6. 批量分析多个球员")
     print("0. 退出程序")
     print("=" * 50)
@@ -103,6 +104,12 @@ def main():
                 print(garbage_performance)
 
             elif choice == "6":
+                player_info = get_player_input()
+                print("📊 正在执行：球员得分分布分析...")
+                score_margin_distribution = nba.analyze_score_margin(**player_info)
+                print(score_margin_distribution)
+
+            elif choice == "7":
                 batch_player_analysis(nba, viz)
 
             else:
