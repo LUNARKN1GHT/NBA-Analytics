@@ -9,7 +9,7 @@ def main():
     print(f"当前数据库配置路径为: {loader.db_path}")
 
     # 下载历史选秀数据
-    loader.fetch_draft_history()
+    # loader.fetch_draft_history()
 
     # loader.fetch_player_career(player_ids=PLAYERS)
 
@@ -27,6 +27,9 @@ def main():
     # 获取比赛 PBP数据
     # game_ids = loader.get_local_player_game_ids(player_id=2544)
     # loader.fetch_pbp_data(game_ids=game_ids)
+
+    # 下载球队比赛数据
+    loader.fetch_team_game_logs(seasons=["2024-25"])
 
 
 if __name__ == "__main__":

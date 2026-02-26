@@ -10,6 +10,7 @@ from nba_api.stats.endpoints import (
     playergamelog,
     playercareerstats,
     drafthistory,
+    teamgamelogs,
 )
 from tqdm.auto import tqdm
 
@@ -375,6 +376,67 @@ class NBALoader:
         df = draft_history.get_data_frames()[0]
 
         self._save_to_sqlite(df=df, category="draft", table_name="history")
+
+    def fetch_team_game_logs(self, seasons: List[str] = "2023-24") -> None:
+        """获取球队比赛历史数据
+
+        Args:
+            seasons: 赛季列表
+        """
+        full_table_name = "team_game_log"
+        logger.info(
+            f"--- [Starting] Fetching team game logs for seasons: {seasons} --- "
+        )
+
+        existing_ids = self._get_existing_ids(full_table_name, "GAME_ID")
+
+        success_count = 0
+        error_count = 0
+        total_new_records = 0
+
+        pbar = tqdm(seasons, desc="Download Team logs", unit="season")
+
+        for season in pbar:
+            self._pause()
+            try:
+                raw_logs = teamgamelogs.TeamGameLogs(
+                    season_nullable=season, league_id_nullable="00", timeout=60
+                )
+                df_all = raw_logs.get_data_frames()[0]
+
+                if df_all.empty:
+                    logger.warning(f"No team logs found for season {season}")
+                    continue
+
+                df_new = df_all[~df_all["GAME_ID"].isin(existing_ids)]
+
+                if df_new.empty:
+                    logger.debug(f"Season {season} data is already up-to-date")
+                    continue
+
+                # 保存数据
+                new_count = len(df_new)
+                self._save_to_sqlite(
+                    df_new, category="team", table_name="game_log", if_exists="append"
+                )
+
+                total_new_records += new_count
+                success_count += 1
+                pbar.set_postfix(new_records=total_new_records)
+
+            except KeyboardInterrupt:
+                logger.info("User interrupted the team logs download")
+                break
+            except Exception as e:
+                error_count += 1
+                logger.error(f"Error downloading team logs for season {season}: {e}")
+                if error_count >= MAX_ERROR_TIMES:
+                    break
+                continue
+
+        logger.info(
+            f"Team logs download finished. Added {total_new_records} records across {success_count} seasons."
+        )
 
     def get_local_player_game_ids(self, player_id: int) -> List[str]:
         """直接从本地数据库读取该球员已有的比赛 ID, 无需联网."""
